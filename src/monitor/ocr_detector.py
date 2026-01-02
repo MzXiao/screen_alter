@@ -190,25 +190,39 @@ class OCRDetector:
         
         # Match keywords
         matched_keywords = []
+        contexts = {}
         search_text = text if case_sensitive else text.lower()
+        
+        # Clean text for better context (replace multiple newlines/spaces)
+        clean_text = ' '.join(text.split())
+        clean_search_text = clean_text if case_sensitive else clean_text.lower()
         
         for keyword in keywords:
             search_keyword = keyword if case_sensitive else keyword.lower()
             
-            # Use regex for more flexible matching
-            if re.search(re.escape(search_keyword), search_text):
+            match = re.search(re.escape(search_keyword), clean_search_text)
+            if match:
                 matched_keywords.append(keyword)
+                
+                # Extract context (20 chars before and after)
+                start = max(0, match.start() - 20)
+                end = min(len(clean_text), match.end() + 20)
+                context = f"...{clean_text[start:end]}..."
+                contexts[keyword] = context
         
         result = {
             "detected": len(matched_keywords) > 0,
             "matched_keywords": matched_keywords,
+            "contexts": contexts,
             "extracted_text": text
         }
         
         if result["detected"]:
-            logger.info(f"Keywords detected: {matched_keywords}")
+            for kw, ctx in contexts.items():
+                logger.info(f"Matched '{kw}' in context: {ctx}")
         
         return result
+
     
     @staticmethod
     def is_available(engine: str = "pytesseract") -> bool:

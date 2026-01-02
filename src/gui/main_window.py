@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem, QComboBox,
     QListWidget, QFileDialog, QMessageBox, QGroupBox, QLineEdit,
-    QHeaderView, QAbstractItemView
+    QHeaderView, QAbstractItemView, QDialog
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
@@ -19,7 +19,7 @@ from database.db_manager import DatabaseManager
 from monitor.screen_capture import ScreenCapture
 from monitor.ocr_detector import OCRDetector
 from monitor.image_detector import ImageDetector
-from alert.wechat_alert import WeChatAlert
+from alert.gui_alert import GUIAlert
 from config import config
 from utils.logger import get_logger
 
@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         
         self.ocr_detector = None
         self.image_detector = ImageDetector(config.get("similarity_threshold", 0.85))
-        self.wechat_alert = WeChatAlert()
+        self.gui_alert = GUIAlert(config.root_dir / "resources")
         logger.info("MainWindow: Detectors initialized")
         
         # Monitoring state
@@ -193,17 +193,25 @@ class MainWindow(QMainWindow):
         panel = QGroupBox("配置")
         layout = QVBoxLayout()
         
-        # Monitor interval
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("监控间隔:"))
+        # Monitor interval and OCR Engine
+        settings_row = QHBoxLayout()
+        settings_row.addWidget(QLabel("监控间隔:"))
         
         self.interval_combo = QComboBox()
         self.interval_combo.addItems(["30秒", "1分钟", "5分钟", "10分钟"])
         self.interval_combo.currentIndexChanged.connect(self.save_config)
-        interval_layout.addWidget(self.interval_combo)
-        interval_layout.addStretch()
+        settings_row.addWidget(self.interval_combo)
         
-        layout.addLayout(interval_layout)
+        settings_row.addSpacing(20)
+        settings_row.addWidget(QLabel("OCR 引擎:"))
+        self.ocr_engine_combo = QComboBox()
+        self.ocr_engine_combo.addItems(["pytesseract", "easyocr"])
+        self.ocr_engine_combo.currentIndexChanged.connect(self.save_config)
+        settings_row.addWidget(self.ocr_engine_combo)
+        
+        settings_row.addStretch()
+        layout.addLayout(settings_row)
+
         
         # Keywords
         keywords_label = QLabel("关键词列表:")
@@ -253,16 +261,24 @@ class MainWindow(QMainWindow):
         ref_images_layout.addLayout(ref_buttons)
         layout.addLayout(ref_images_layout)
         
-        # WeChat recipient
-        wechat_layout = QHBoxLayout()
-        wechat_layout.addWidget(QLabel("微信接收人:"))
+        # Region configuration
+        region_layout = QHBoxLayout()
+        region_layout.addWidget(QLabel("监控区域:"))
         
-        self.wechat_recipient_input = QLineEdit()
-        self.wechat_recipient_input.setPlaceholderText("输入微信用户名或备注名")
-        self.wechat_recipient_input.textChanged.connect(self.save_config)
-        wechat_layout.addWidget(self.wechat_recipient_input)
+        self.region_label = QLabel("全屏")
+        self.region_label.setStyleSheet("color: #666; font-style: italic;")
+        region_layout.addWidget(self.region_label)
         
-        layout.addLayout(wechat_layout)
+        self.select_region_btn = QPushButton("选择区域")
+        self.select_region_btn.clicked.connect(self.select_capture_region)
+        region_layout.addWidget(self.select_region_btn)
+        
+        self.reset_region_btn = QPushButton("重置全屏")
+        self.reset_region_btn.clicked.connect(self.reset_capture_region)
+        region_layout.addWidget(self.reset_region_btn)
+        
+        region_layout.addStretch()
+        layout.addLayout(region_layout)
         
         panel.setLayout(layout)
         return panel
@@ -282,13 +298,22 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(self.alert_table)
         
-        # Refresh button
-        refresh_btn = QPushButton("刷新日志")
+        # Refresh and History buttons
+        buttons_layout = QHBoxLayout()
+        refresh_btn = QPushButton("刷新报警")
         refresh_btn.clicked.connect(self.load_alert_log)
-        layout.addWidget(refresh_btn)
+        buttons_layout.addWidget(refresh_btn)
+        
+        history_btn = QPushButton("查看监控历史")
+        history_btn.clicked.connect(self.view_monitoring_history)
+        buttons_layout.addWidget(history_btn)
+        
+        layout.addLayout(buttons_layout)
         
         group.setLayout(layout)
         return group
+
+
     
     def create_control_buttons(self) -> QWidget:
         """Create control buttons."""
@@ -346,10 +371,12 @@ class MainWindow(QMainWindow):
     
     def load_config_to_ui(self):
         """Load configuration to UI elements."""
+        # OCR Engine
+        current_engine = self.user_config.get("ocr_engine", "pytesseract")
+        engine_idx = 0 if current_engine == "pytesseract" else 1
+        self.ocr_engine_combo.setCurrentIndex(engine_idx)
+        
         # Monitor interval
-        interval = self.user_config.get("monitor_interval", 60)
-        interval_map = {30: 0, 60: 1, 300: 2, 600: 3}
-        self.interval_combo.setCurrentIndex(interval_map.get(interval, 1))
         
         # Keywords
         keywords = self.user_config.get("keywords", [])
@@ -361,19 +388,22 @@ class MainWindow(QMainWindow):
         for img_path in ref_images:
             self.ref_images_list.addItem(Path(img_path).name)
         
-        # WeChat recipient
-        wechat_config = self.user_config.get("wechat_config", {})
-        recipient = wechat_config.get("recipient", "")
-        self.wechat_recipient_input.setText(recipient)
+        # Capture region
+        region = self.user_config.get("capture_region")
+        if region:
+            self.region_label.setText(f"{region[0]}, {region[1]}, {region[2]}x{region[3]}")
+        else:
+            self.region_label.setText("全屏")
         
         # Load alert log
         self.load_alert_log()
     
     def save_config(self):
         """Save current configuration."""
-        # Get interval
+        # Get interval and engine
         interval_map = {0: 30, 1: 60, 2: 300, 3: 600}
         interval = interval_map.get(self.interval_combo.currentIndex(), 60)
+        ocr_engine = self.ocr_engine_combo.currentText()
         
         # Get keywords
         keywords = [self.keywords_list.item(i).text() 
@@ -382,22 +412,43 @@ class MainWindow(QMainWindow):
         # Get reference images (stored as full paths in user_config)
         ref_images = self.user_config.get("reference_images", [])
         
-        # Get WeChat config
-        wechat_config = {
-            "recipient": self.wechat_recipient_input.text().strip()
-        }
+        # Get region
+        capture_region = self.user_config.get("capture_region")
         
         # Save to database
         self.db.create_or_update_config(
             self.user_id,
             monitor_interval=interval,
+            ocr_engine=ocr_engine,
             keywords=keywords,
-            wechat_config=wechat_config,
+            capture_region=capture_region,
             reference_images=ref_images
         )
         
         # Reload config
         self.user_config = self.db.get_config(self.user_id) or {}
+
+    def select_capture_region(self):
+        """Allow user to select a capture region."""
+        from gui.region_selector import RegionSelector
+        
+        self.selector = RegionSelector()
+        self.selector.region_selected.connect(self.on_region_selected)
+        self.selector.show()
+
+    def on_region_selected(self, region):
+        """Handle region selected event."""
+        self.user_config["capture_region"] = region
+        self.region_label.setText(f"{region[0]}, {region[1]}, {region[2]}x{region[3]}")
+        self.save_config()
+        QMessageBox.information(self, "成功", f"监控区域已设置为: {region}")
+
+    def reset_capture_region(self):
+        """Reset capture region to full screen."""
+        self.user_config["capture_region"] = None
+        self.region_label.setText("全屏")
+        self.save_config()
+        QMessageBox.information(self, "成功", "已重置为全屏监控")
     
     def add_keyword(self):
         """Add a new keyword."""
@@ -414,6 +465,19 @@ class MainWindow(QMainWindow):
         if current_row >= 0:
             self.keywords_list.takeItem(current_row)
             self.save_config()
+    
+    def update_screenshot_preview(self, pixmap: QPixmap):
+        """Update screenshot preview."""
+        self.screenshot_label.setPixmap(pixmap.scaled(
+            self.screenshot_label.size(),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation
+        ))
+
+    def view_monitoring_history(self):
+        """Open monitoring history dialog."""
+        dialog = MonitoringHistoryDialog(self.db, self.user_id, self)
+        dialog.exec_()
     
     def add_reference_image(self):
         """Add a reference image."""
@@ -493,9 +557,11 @@ class MainWindow(QMainWindow):
         # Initialize OCR detector if needed
         if keywords:
             try:
-                ocr_engine = config.get("ocr_engine", "pytesseract")
-                ocr_language = config.get("ocr_language", "chi_sim+eng")
+                ocr_engine = self.user_config.get("ocr_engine", "pytesseract")
+                ocr_language = self.user_config.get("ocr_language", "chi_sim+eng")
+                logger.info(f"Initializing OCR detector with engine: {ocr_engine}")
                 self.ocr_detector = OCRDetector(ocr_engine, ocr_language)
+
             except Exception as e:
                 QMessageBox.critical(
                     self,
@@ -540,20 +606,28 @@ class MainWindow(QMainWindow):
     def perform_monitoring_check(self):
         """Perform a monitoring check."""
         try:
-            logger.info("Performing monitoring check...")
+            # Get configuration
+            keywords = [self.keywords_list.item(i).text() 
+                       for i in range(self.keywords_list.count())]
+            ref_images = self.user_config.get("reference_images", [])
+            engine = self.ocr_detector.engine if self.ocr_detector else "None"
+            region = self.user_config.get("capture_region")
+            
+            logger.info("--- Monitoring Check Started ---")
+            logger.info(f"Target: {region if region else 'Full Screen'}")
+            logger.info(f"OCR Engine: {engine}")
+            logger.info(f"Keywords: {keywords}")
+            logger.info(f"Ref Images: {[Path(p).name for p in ref_images]}")
+            logger.info("--------------------------------")
             
             # Capture screenshot
-            result = self.screen_capture.capture_and_save()
+            result = self.screen_capture.capture_and_save(region=region)
             if not result:
                 logger.error("Failed to capture screenshot")
                 return
             
             screenshot, screenshot_path = result
-            
-            # Get configuration
-            keywords = [self.keywords_list.item(i).text() 
-                       for i in range(self.keywords_list.count())]
-            ref_images = self.user_config.get("reference_images", [])
+
             
             detected = False
             detected_keyword = None
@@ -562,12 +636,19 @@ class MainWindow(QMainWindow):
             
             # OCR detection
             if keywords and self.ocr_detector:
+                logger.info(f"Checking keywords using {self.ocr_detector.engine}...")
                 ocr_result = self.ocr_detector.detect_keywords(screenshot, keywords)
+                
+                # Log a snippet of the extracted text to show what OCR sees
+                text_snippet = ocr_result["extracted_text"][:100].replace('\n', ' ')
+                logger.info(f"OCR Extracted: {text_snippet}...")
+                
                 if ocr_result["detected"]:
                     detected = True
                     detected_keyword = ", ".join(ocr_result["matched_keywords"])
                     detection_method = "ocr"
                     logger.info(f"OCR detection: {detected_keyword}")
+
             
             # Image similarity detection
             if ref_images and not detected:
@@ -582,6 +663,7 @@ class MainWindow(QMainWindow):
             
             # If detected, create alert and send notification
             if detected:
+                # Record alert
                 alert_id = self.db.create_alert(
                     self.user_id,
                     detected_keyword=detected_keyword,
@@ -591,27 +673,50 @@ class MainWindow(QMainWindow):
                     alert_sent=False
                 )
                 
-                # Send WeChat alert
-                recipient = self.wechat_recipient_input.text().strip()
-                if recipient and self.wechat_alert.is_logged_in:
-                    success = self.wechat_alert.send_alert(
-                        recipient,
-                        detected_keyword,
-                        screenshot_path
-                    )
-                    
-                    if success and alert_id:
-                        self.db.update_alert_sent_status(alert_id, True)
+                # Record check log
+                self.db.create_check_log(
+                    self.user_id,
+                    "DETECTED",
+                    f"Detected {detection_method}: {detected_keyword}",
+                    screenshot_path
+                )
                 
+                # Trigger GUI Alert (WeChat Call)
+                logger.info("Triggering GUI Alert (WeChat Call)...")
+                success = self.gui_alert.trigger_wechat_call()
+                
+                if success and alert_id:
+                    self.db.update_alert_sent_status(alert_id, True)
+                elif not success:
+                    logger.error("Failed to trigger GUI Alert")
+
                 # Refresh alert log
                 self.load_alert_log()
-            
+                
+                # Pause monitoring after detection as requested
+                logger.info("Monitoring paused due to detection.")
+                self.stop_monitoring()
+                QMessageBox.information(self, "监控暂停", "检测到目标，监控已自动暂停。\n微信窗口已保留在屏幕上。")
+            else:
+                logger.info("Check complete: No keywords or patterns detected.")
+                self.db.create_check_log(
+                    self.user_id,
+                    "SUCCESS",
+                    "No keywords or patterns detected",
+                    screenshot_path
+                )
+
             # Cleanup old screenshots
             self.screen_capture.cleanup_old_screenshots()
             
         except Exception as e:
             logger.error(f"Monitoring check failed: {e}")
-    
+            self.db.create_check_log(
+                self.user_id,
+                "FAILED",
+                str(e)
+            )
+
     def closeEvent(self, event):
         """Handle window close event."""
         if self.is_monitoring:
@@ -630,3 +735,56 @@ class MainWindow(QMainWindow):
                 event.ignore()
         else:
             event.accept()
+
+
+class MonitoringHistoryDialog(QDialog):
+    """Dialog to show monitoring check history."""
+    
+    def __init__(self, db_manager, user_id, parent=None):
+        super().__init__(parent)
+        self.db = db_manager
+        self.user_id = user_id
+        self.setup_ui()
+        self.load_history()
+        
+    def setup_ui(self):
+        self.setWindowTitle("监控历史记录")
+        self.setMinimumSize(800, 500)
+        layout = QVBoxLayout()
+        
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["时间", "状态", "详情", "截图"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        
+        layout.addWidget(self.table)
+        
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.clicked.connect(self.load_history)
+        layout.addWidget(refresh_btn)
+        
+        self.setLayout(layout)
+        
+    def load_history(self):
+        logs = self.db.get_recent_check_logs(self.user_id)
+        self.table.setRowCount(len(logs))
+        
+        for i, log in enumerate(logs):
+            self.table.setItem(i, 0, QTableWidgetItem(log['check_time']))
+            
+            status_item = QTableWidgetItem(log['result_status'])
+            if log['result_status'] == 'DETECTED':
+                status_item.setForeground(QColor("#dc3545"))
+            elif log['result_status'] == 'FAILED':
+                status_item.setForeground(QColor("#ffc107"))
+            else:
+                status_item.setForeground(QColor("#28a745"))
+            self.table.setItem(i, 1, status_item)
+            
+            self.table.setItem(i, 2, QTableWidgetItem(log['details']))
+            
+            has_img = "有" if log['screenshot_path'] else "无"
+            self.table.setItem(i, 3, QTableWidgetItem(has_img))
+

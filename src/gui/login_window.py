@@ -36,7 +36,7 @@ class LoginWindow(QDialog):
     def setup_ui(self):
         """Set up the user interface."""
         self.setWindowTitle("Screen Monitor - 登录")
-        self.setFixedSize(400, 500)
+        self.setFixedSize(400, 600)
         self.setModal(True)
         
         # Set gradient background
@@ -64,7 +64,7 @@ class LoginWindow(QDialog):
         subtitle.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
         layout.addWidget(subtitle)
         
-        layout.addSpacing(30)
+        layout.addSpacing(20)
         
         # Login card
         card = self.create_login_card()
@@ -120,13 +120,14 @@ class LoginWindow(QDialog):
         layout.addWidget(username_label)
         
         self.username_input = QLineEdit()
+        self.username_input.setFixedHeight(45)
         self.username_input.setPlaceholderText("请输入用户名")
         self.username_input.setStyleSheet("""
             QLineEdit {
-                padding: 10px;
+                padding-left: 12px;
                 border: 1px solid #ddd;
-                border-radius: 5px;
-                font-size: 12px;
+                border-radius: 6px;
+                font-size: 14px;
             }
             QLineEdit:focus {
                 border: 2px solid #4A90E2;
@@ -140,14 +141,15 @@ class LoginWindow(QDialog):
         layout.addWidget(password_label)
         
         self.password_input = QLineEdit()
+        self.password_input.setFixedHeight(45)
         self.password_input.setPlaceholderText("请输入密码")
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.setStyleSheet("""
             QLineEdit {
-                padding: 10px;
+                padding-left: 12px;
                 border: 1px solid #ddd;
-                border-radius: 5px;
-                font-size: 12px;
+                border-radius: 6px;
+                font-size: 14px;
             }
             QLineEdit:focus {
                 border: 2px solid #4A90E2;
@@ -159,13 +161,15 @@ class LoginWindow(QDialog):
         # Remember me checkbox
         self.remember_checkbox = QCheckBox("记住用户名")
         self.remember_checkbox.setFont(QFont("Arial", 9))
+        self.remember_checkbox.setMinimumHeight(30)
         layout.addWidget(self.remember_checkbox)
         
-        layout.addSpacing(10)
+        layout.addSpacing(15)
         
         # Login button
         self.login_button = QPushButton("登录")
         self.login_button.setFont(QFont("Arial", 12, QFont.Bold))
+        self.login_button.setFixedHeight(48)
         self.login_button.setStyleSheet("""
             QPushButton {
                 background-color: #4A90E2;

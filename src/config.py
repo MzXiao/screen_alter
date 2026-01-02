@@ -25,11 +25,14 @@ class Config:
     
     def __init__(self):
         """Initialize configuration."""
-        self.app_dir = self._get_app_directory()
-        self.config_file = self.app_dir / "config.json"
-        self.db_path = self.app_dir / "screen_monitor.db"
-        self.screenshots_dir = self.app_dir / "screenshots"
-        self.logs_dir = self.app_dir / "logs"
+        self.root_dir = Path(__file__).parent.parent.absolute()
+        self.app_dir = self.root_dir  # Store everything in project root
+        
+        self.config_dir = self.root_dir / "config"
+        self.config_file = self.config_dir / "config.json"
+        self.db_path = self.root_dir / "screen_monitor.db"
+        self.screenshots_dir = self.root_dir / "screenshots"
+        self.logs_dir = self.root_dir / "logs"
         
         # Create directories if they don't exist
         self._ensure_directories()
@@ -38,22 +41,12 @@ class Config:
         self.settings = self._load_config()
     
     def _get_app_directory(self) -> Path:
-        """Get platform-specific application directory."""
-        if os.name == 'nt':  # Windows
-            base = Path(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')))
-            app_dir = base / self.APP_NAME
-        else:  # macOS and Linux
-            if os.uname().sysname == 'Darwin':  # macOS
-                base = Path.home() / "Library" / "Application Support"
-            else:  # Linux
-                base = Path.home() / ".local" / "share"
-            app_dir = base / self.APP_NAME
-        
-        return app_dir
+        """Deprecated: Return root directory."""
+        return self.root_dir
     
     def _ensure_directories(self):
         """Create application directories if they don't exist."""
-        for directory in [self.app_dir, self.screenshots_dir, self.logs_dir]:
+        for directory in [self.app_dir, self.config_dir, self.screenshots_dir, self.logs_dir]:
             directory.mkdir(parents=True, exist_ok=True)
     
     def _load_config(self) -> Dict[str, Any]:
@@ -76,10 +69,10 @@ class Config:
             "ocr_language": self.DEFAULT_OCR_LANGUAGE,
             "similarity_threshold": self.DEFAULT_SIMILARITY_THRESHOLD,
             "screenshot_retention_days": self.DEFAULT_SCREENSHOT_RETENTION_DAYS,
+            "screenshot_limit": 100,
+            "capture_region": None,  # (left, top, width, height) or None for full screen
             "keywords": [],
             "reference_images": [],
-            "wechat_recipient": "",
-            "remember_username": "",
             "auto_start_monitoring": False,
         }
     

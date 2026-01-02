@@ -19,10 +19,12 @@ from utils.system_tray import SystemTray
 from utils.logger import setup_logger, get_logger
 
 # Set up logging
-logger = setup_logger(
-    "screen_monitor",
+setup_logger(
+    "",  # Root logger
     log_file=config.logs_dir / "app.log"
 )
+logger = get_logger("screen_monitor")
+
 
 
 class Application:

@@ -66,8 +66,44 @@ class DatabaseManager:
                     )
                     logger.info(f"Database initialized with schema version {SCHEMA_VERSION}")
                 elif result[0] < SCHEMA_VERSION:
-                    # Future: Handle migrations here
-                    logger.warning(f"Schema version mismatch: {result[0]} vs {SCHEMA_VERSION}")
+                    # Migration: Version 1 -> 2 (Add ocr_engine to config table)
+                    if result[0] == 1:
+                        logger.info("Migrating database from version 1 to 2...")
+                        try:
+                            cursor.execute("ALTER TABLE config ADD COLUMN ocr_engine VARCHAR(20) DEFAULT 'pytesseract'")
+                            cursor.execute("UPDATE schema_version SET version = ?", (2,))
+                            logger.info("Migration to version 2 complete")
+                        except Exception as e:
+                            logger.error(f"Migration failed: {e}")
+                    
+                    # Migration: Version 2 -> 3 (Add check_logs table)
+                    # Note: We re-run ALL_SCHEMA_STATEMENTS which includes CREATE TABLE IF NOT EXISTS
+                    # so we just need to update the version number.
+                    if result[0] <= 2:
+                        logger.info("Migrating database to version 3...")
+                        try:
+                            for statement in ALL_SCHEMA_STATEMENTS:
+                                cursor.execute(statement)
+                            cursor.execute("UPDATE schema_version SET version = ?", (3,))
+                            logger.info("Migration to version 3 complete")
+                        except Exception as e:
+                            logger.error(f"Migration to v3 failed: {e}")
+                    
+                    # Migration: Version 3 -> 4 (Add capture_region to config)
+                    if result[0] <= 3:
+                        logger.info("Migrating database to version 4...")
+                        try:
+                            # Check if column exists first (SQLite doesn't support IF NOT EXISTS for ADD COLUMN)
+                            cursor.execute("PRAGMA table_info(config)")
+                            columns = [col[1] for col in cursor.fetchall()]
+                            if 'capture_region' not in columns:
+                                cursor.execute("ALTER TABLE config ADD COLUMN capture_region TEXT")
+                            
+                            # Update existing rows if necessary, but TEXT is fine as None
+                            cursor.execute("UPDATE schema_version SET version = ?", (4,))
+                            logger.info("Migration to version 4 complete")
+                        except Exception as e:
+                            logger.error(f"Migration to v4 failed: {e}")
                 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
@@ -147,8 +183,9 @@ class DatabaseManager:
         self,
         user_id: int,
         monitor_interval: int = 60,
+        ocr_engine: str = 'pytesseract',
         keywords: List[str] = None,
-        wechat_config: Dict[str, Any] = None,
+        capture_region: Tuple[int, int, int, int] = None,
         reference_images: List[str] = None
     ) -> bool:
         """
@@ -158,14 +195,13 @@ class DatabaseManager:
             user_id: User ID
             monitor_interval: Monitoring interval in seconds
             keywords: List of keywords to detect
-            wechat_config: WeChat configuration
+            capture_region: Region to capture (x, y, w, h)
             reference_images: List of reference image paths
         
         Returns:
             True if successful
         """
         keywords = keywords or []
-        wechat_config = wechat_config or {}
         reference_images = reference_images or []
         
         try:
@@ -180,13 +216,14 @@ class DatabaseManager:
                     # Update
                     cursor.execute(
                         """UPDATE config 
-                           SET monitor_interval = ?, keywords = ?, wechat_config = ?, 
+                           SET monitor_interval = ?, ocr_engine = ?, keywords = ?, capture_region = ?, 
                                reference_images = ?, updated_at = ?
                            WHERE user_id = ?""",
                         (
                             monitor_interval,
+                            ocr_engine,
                             json.dumps(keywords, ensure_ascii=False),
-                            json.dumps(wechat_config, ensure_ascii=False),
+                            json.dumps(capture_region) if capture_region else None,
                             json.dumps(reference_images, ensure_ascii=False),
                             datetime.now(),
                             user_id
@@ -195,13 +232,14 @@ class DatabaseManager:
                 else:
                     # Create
                     cursor.execute(
-                        """INSERT INTO config (user_id, monitor_interval, keywords, wechat_config, reference_images)
-                           VALUES (?, ?, ?, ?, ?)""",
+                        """INSERT INTO config (user_id, monitor_interval, ocr_engine, keywords, capture_region, reference_images)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
                         (
                             user_id,
                             monitor_interval,
+                            ocr_engine,
                             json.dumps(keywords, ensure_ascii=False),
-                            json.dumps(wechat_config, ensure_ascii=False),
+                            json.dumps(capture_region) if capture_region else None,
                             json.dumps(reference_images, ensure_ascii=False)
                         )
                     )
@@ -233,7 +271,7 @@ class DatabaseManager:
                     config = dict(row)
                     # Parse JSON fields
                     config['keywords'] = json.loads(config['keywords']) if config['keywords'] else []
-                    config['wechat_config'] = json.loads(config['wechat_config']) if config['wechat_config'] else {}
+                    config['capture_region'] = json.loads(config['capture_region']) if config.get('capture_region') else None
                     config['reference_images'] = json.loads(config['reference_images']) if config['reference_images'] else []
                     return config
                 return None
@@ -246,38 +284,75 @@ class DatabaseManager:
     def create_alert(
         self,
         user_id: int,
-        detected_keyword: Optional[str] = None,
-        screenshot_path: Optional[str] = None,
+        detected_keyword: str,
+        screenshot_path: str,
         detection_method: str = "ocr",
-        similarity_score: Optional[float] = None,
+        similarity_score: float = None,
         alert_sent: bool = False
     ) -> Optional[int]:
         """
-        Create a new alert record.
+        Record a new alert.
         
         Args:
-            user_id: User ID
-            detected_keyword: Detected keyword
+            user_id: User who triggered the alert
+            detected_keyword: Keyword or image name detected
             screenshot_path: Path to screenshot
-            detection_method: Detection method ('ocr' or 'image_similarity')
-            similarity_score: Similarity score (for image detection)
-            alert_sent: Whether alert was sent successfully
-        
+            detection_method: OCR or image_similarity
+            similarity_score: Detection confidence (0-1)
+            alert_sent: Whether notification was successful
+            
         Returns:
-            Alert ID if successful
+            ID of the new alert record or None
         """
         try:
-            with self._get_connection() as conn:
+            with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    """INSERT INTO alerts 
-                       (user_id, detected_keyword, screenshot_path, detection_method, similarity_score, alert_sent)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (user_id, detected_keyword, screenshot_path, detection_method, similarity_score, alert_sent)
+                    """INSERT INTO alerts (
+                        user_id, detected_keyword, screenshot_path, 
+                        detection_method, similarity_score, alert_sent
+                    ) VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        user_id, detected_keyword, screenshot_path,
+                        detection_method, similarity_score, 1 if alert_sent else 0
+                    )
                 )
                 return cursor.lastrowid
         except Exception as e:
-            logger.error(f"Failed to create alert: {e}")
+            logger.error(f"Failed to create alert record: {e}")
+            return None
+
+    def create_check_log(
+        self,
+        user_id: int,
+        result_status: str,
+        details: str,
+        screenshot_path: str = None
+    ) -> Optional[int]:
+        """
+        Record a monitoring check attempt.
+        
+        Args:
+            user_id: Current user
+            result_status: 'SUCCESS' (not detected), 'DETECTED', 'FAILED'
+            details: Error details or detection summary
+            screenshot_path: Optional path to screenshot
+            
+        Returns:
+            ID of the new check log record or None
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """INSERT INTO check_logs (
+                        user_id, result_status, details, screenshot_path
+                    ) VALUES (?, ?, ?, ?)""",
+                    (user_id, result_status, details, screenshot_path)
+                )
+                return cursor.lastrowid
+        except Exception as e:
+            logger.error(f"Failed to create check log: {e}")
             return None
     
     def get_recent_alerts(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
@@ -341,7 +416,36 @@ class DatabaseManager:
             logger.error(f"Failed to get alert stats: {e}")
             return {'total_alerts': 0, 'alerts_sent': 0, 'period_days': days}
     
+    def get_recent_check_logs(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get recent monitoring check logs.
+        
+        Args:
+            user_id: Current user
+            limit: Maximum number of records
+            
+        Returns:
+            List of log dictionaries
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """SELECT id, check_time, result_status, details, screenshot_path 
+                       FROM check_logs 
+                       WHERE user_id = ? 
+                       ORDER BY check_time DESC 
+                       LIMIT ?""",
+                    (user_id, limit)
+                )
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to get check logs: {e}")
+            return []
+
     def update_alert_sent_status(self, alert_id: int, sent: bool = True):
+
         """
         Update alert sent status.
         

@@ -27,7 +27,7 @@ hiddenimports = [
     'pytesseract',
     'imagehash',
     'bcrypt',
-    'requests',
+    'requests',  # For PaddleOCR HTTP client
     'sqlite3',
     'json',
     'logging',
@@ -35,14 +35,26 @@ hiddenimports = [
 
 a = Analysis(
     ['src/main.py'],
-    pathex=[],
+    pathex=['src'],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        # Exclude PaddleOCR (now using standalone service)
+        'paddleocr',
+        'paddle',
+        'paddlepaddle',
+        # Exclude heavy dependencies not needed
+        'matplotlib',
+        'scipy',
+        'numpy.distutils',
+        'tkinter',
+        'test',
+        'unittest',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -61,7 +73,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    console=True,  # Set to True for debugging, change to False for release
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

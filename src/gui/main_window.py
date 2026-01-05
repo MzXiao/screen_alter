@@ -18,9 +18,9 @@ from typing import Optional, Dict, Any, List
 from database.db_manager import DatabaseManager
 from monitor.screen_capture import ScreenCapture
 from monitor.image_detector import ImageDetector
-from monitor.paddle_ocr_detector import PaddleOCRDetector
+from monitor.paddle_ocr_client import PaddleOCRClient
 from alert.gui_alert import GUIAlert
-from config import config
+from config_mod import config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -626,15 +626,57 @@ class MainWindow(QMainWindow):
             try:
                 ocr_engine = self.user_config.get("ocr_engine", "paddleocr")
                 logger.info(f"Initializing OCR detector with engine: {ocr_engine}")
+                
                 if ocr_engine == "paddleocr":
-                    self.ocr_detector = PaddleOCRDetector()
-                    # Pre-initialize in main thread to avoid macOS background thread segfaults
-                    logger.info("Pre-initializing PaddleOCR in main thread...")
-                    self.ocr_detector._initialize_ocr()
+                    # PaddleOCR 只支持 HTTP 服务模式
+                    service_url = self.user_config.get(
+                        "paddleocr_service_url", 
+                        "http://localhost:5000"
+                    )
+                    
+                    logger.info(f"Using PaddleOCR service at {service_url}")
+                    
+                    # 检查服务是否可用
+                    if not PaddleOCRClient.is_available(service_url):
+                        reply = QMessageBox.critical(
+                            self,
+                            "PaddleOCR 服务不可用",
+                            f"无法连接到 PaddleOCR 服务：{service_url}\n\n"
+                            "请确保 PaddleOCRService 已启动。\n\n"
+                            "如果没有安装 PaddleOCR 服务，请：\n"
+                            "1. 启动 PaddleOCRService.exe，或\n"
+                            "2. 切换到 pytesseract 引擎\n\n"
+                            "是否现在切换到 pytesseract？",
+                            QMessageBox.Yes | QMessageBox.No,
+                            QMessageBox.Yes
+                        )
+                        
+                        if reply == QMessageBox.Yes:
+                            # 切换到 pytesseract
+                            logger.info("Switching to pytesseract engine")
+                            self.user_config["ocr_engine"] = "pytesseract"
+                            self.ocr_engine_combo.setCurrentIndex(0)  # pytesseract
+                            self.db_manager.save_user_config(
+                                self.user_id,
+                                self.user_config
+                            )
+                            # 递归调用，使用 pytesseract 重新初始化
+                            from monitor.ocr_detector import OCRDetector
+                            self.ocr_detector = OCRDetector("pytesseract")
+                        else:
+                            return
+                    else:
+                        # 服务可用，使用客户端模式
+                        self.ocr_detector = PaddleOCRClient(service_url)
+                        logger.info("PaddleOCR client initialized successfully")
                 else:
+                    # 使用其他 OCR 引擎（如 pytesseract）
                     from monitor.ocr_detector import OCRDetector
                     self.ocr_detector = OCRDetector(ocr_engine)
+                    logger.info(f"{ocr_engine} initialized successfully")
+                    
             except Exception as e:
+                logger.error(f"OCR initialization failed: {e}", exc_info=True)
                 QMessageBox.critical(self, "OCR初始化失败", f"无法初始化OCR引擎: {str(e)}")
                 return
         

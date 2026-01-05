@@ -8,7 +8,7 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
-from config import config
+from config_mod import config
 from database.models import ALL_SCHEMA_STATEMENTS
 
 logger = logging.getLogger(__name__)

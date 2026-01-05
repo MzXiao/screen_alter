@@ -80,6 +80,11 @@ class Config:
             "reference_images": [],
             "auto_start_monitoring": False,
             "backend_url": "http://localhost:8000",
+            # PaddleOCR Service Configuration (C/S 架构，只支持 HTTP 服务模式)
+            "paddleocr_service_url": "http://localhost:5000",
+            # WeChat Configuration
+            "wechat_enabled": False,  # 是否启用微信功能
+            "wechat_path": "",  # 微信程序路径（留空自动查找）
         }
     
     def save(self):

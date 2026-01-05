@@ -1,0 +1,17 @@
+# PaddleOCR Service Dependencies
+
+# Web Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# OCR Engine
+paddlepaddle==2.6.2
+paddleocr==2.9.1
+
+# Image Processing
+Pillow==10.4.0
+numpy>=1.26.0,<2.0.0
+
+# Optional: for better performance
+# gunicorn  # Production server

@@ -5,7 +5,7 @@ Handles user login and session management via backend API.
 
 import requests
 from typing import Optional, Dict, Any
-from config import config
+from config_mod import config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -8,7 +8,7 @@ import cv2
 from paddleocr import PaddleOCR
 import numpy as np
 
-违规通知
+
 print("--- 正在检查环境 ---")
 print(f"OpenCV 路径: {cv2.__file__}")
 print(f"NumPy 版本: {np.__version__}")

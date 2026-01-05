@@ -61,9 +61,57 @@ brew install tesseract tesseract-lang
 ### 5. 运行应用
 
 ```bash
-cd /Users/xiao/work/partner/screen_alter/src
+# 方式1: 从项目根目录运行（推荐）
+python src/main.py
+
+# 方式2: 从src目录运行
+cd src
 python main.py
 ```
+
+### 5.1 测试 PaddleOCR 服务（可选）
+
+如果使用 PaddleOCR，可以先测试服务是否正常：
+
+```bash
+# 确保服务已启动
+cd paddleocr_service
+python server.py
+
+# 新开终端，运行测试
+python test_paddleocr_service.py
+```
+
+应该看到所有测试通过：
+```
+✅ 健康检查: 通过
+✅ OCR 识别: 通过
+✅ 关键词检测: 通过
+✅ 空关键词验证: 通过
+```
+
+### 6. 选择 OCR 引擎
+
+本应用支持两种 OCR 引擎，需要单独安装：
+
+#### 选项 A：PaddleOCR 服务（推荐 - 高准确率）
+
+```bash
+# 启动 PaddleOCR 服务
+cd paddleocr_service
+pip install -r requirements.txt
+python server.py
+```
+
+详见：[PaddleOCR 独立服务快速开始](QUICK_START_STANDALONE.md)
+
+#### 选项 B：Tesseract OCR（轻量级）
+
+下载安装：https://github.com/UB-Mannheim/tesseract/wiki
+- 安装时勾选"Chinese (Simplified)"语言包
+- 添加到系统 PATH
+
+详见：[OCR 引擎对比指南](docs/OCR_ENGINE_GUIDE.md)
 
 ## 使用指南
 
@@ -102,39 +150,82 @@ python main.py
 - 查看日志
 - 退出应用
 
-## 配置文件位置
+## 配置说明
 
-应用数据存储在以下位置:
+### 配置文件位置
 
-- **macOS**: `~/Library/Application Support/ScreenMonitor/`
-- **Windows**: `C:\Users\<用户名>\AppData\Local\ScreenMonitor\`
+- **主配置**：`config/config.json`
+- **配置说明**：查看 **[配置文件指南](CONFIG_GUIDE.md)** 📝
 
-包含:
+### 主要配置项
+
+```json
+{
+  "ocr_engine": "paddleocr",                    // OCR 引擎
+  "paddleocr_service_url": "http://localhost:5000",  // PaddleOCR 服务地址 ⭐
+  "wechat_enabled": false,                      // 是否启用微信
+  "wechat_path": ""                             // 微信程序路径
+}
+```
+
+**详细说明**：[CONFIG_GUIDE.md](CONFIG_GUIDE.md)
+
+### 数据存储位置
+
+应用数据存储在项目根目录:
+
+- `config/` - 配置文件
 - `screen_monitor.db` - 数据库文件
 - `screenshots/` - 截图存储目录
 - `logs/` - 应用日志
-- `config.json` - 配置文件
 
 ## 常见问题
 
-### OCR识别不准确
+### 🚨 快速修复
 
-1. 确保已安装Tesseract OCR及中文语言包
-2. 尝试调整屏幕分辨率或文字大小
-3. 考虑使用EasyOCR（更准确但更慢）
+遇到问题？查看 **[快速修复指南](QUICK_FIX_GUIDE.md)** ⭐
 
-### 微信登录失败
+### 无法连接 PaddleOCR 服务
 
-1. 确保已安装itchat: `pip install itchat`
-2. 检查网络连接
-3. 尝试重新扫码登录
-4. 注意：频繁使用可能导致账号被限制
+1. 确保服务已启动：`cd paddleocr_service && python server.py`
+2. 检查端口 5000 是否被占用
+3. 浏览器访问 http://localhost:5000 验证服务
 
-### 截图功能不工作
+### OCR 识别不准确
 
-1. 检查应用是否有屏幕录制权限（macOS）
-2. 确保已安装mss库: `pip install mss`
-3. 查看日志文件了解详细错误信息
+1. **PaddleOCR**：准确率高，但需要启动服务
+2. **Tesseract**：需要单独安装，轻量级
+3. 调整屏幕分辨率或文字大小
+4. 查看 [OCR 引擎对比](docs/OCR_ENGINE_GUIDE.md)
+
+### HTTP 400 错误
+
+```bash
+# 测试服务
+python test_paddleocr_service.py
+```
+
+详细说明：[FIX_HTTP_400.md](FIX_HTTP_400.md)
+
+### windows 找不到微信
+
+```bash
+# 自动查找并配置（简洁高效）
+python find_wechat.py
+```
+
+工具会按顺序查找：
+1. 配置文件（优先）
+2. 常见安装路径
+
+或禁用微信：`"wechat_enabled": false`
+
+详细说明：[WECHAT_TROUBLESHOOTING.md](WECHAT_TROUBLESHOOTING.md)
+
+### 更多问题
+
+- **[快速修复指南](QUICK_FIX_GUIDE.md)** - 最常见问题 ⭐
+- **[完整故障排查](TROUBLESHOOTING.md)** - 所有已知问题
 
 ## 开发相关
 

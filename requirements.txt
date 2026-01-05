@@ -27,6 +27,7 @@ bcrypt==4.2.1
 
 # Utilities
 python-dotenv==1.0.1
+requests==2.31.0  # For PaddleOCR HTTP client
 
 # Testing
 pytest==8.3.4
@@ -47,6 +48,7 @@ mysql-connector-python==9.1.0
 PyJWT==2.10.1
 python-multipart==0.0.20
 
-# PaddleOCR
-paddlepaddle==2.6.2
-paddleocr==2.9.1
+# PaddleOCR - 已移除，改用独立服务 (paddleocr_service/)
+# 主应用不再打包 PaddleOCR，通过 HTTP API 调用独立服务
+# 如需使用 PaddleOCR，请启动 paddleocr_service/server.py
+# 或运行 paddleocr_service/dist/PaddleOCRService.exe

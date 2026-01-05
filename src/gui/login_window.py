@@ -210,7 +210,7 @@ class LoginWindow(QDialog):
         if success:
             # Save username if remember me is checked
             if self.remember_checkbox.isChecked():
-                from config import config
+                from config_mod import config
                 config.set("remember_username", username)
             
             # Emit signal and close
@@ -244,7 +244,7 @@ class LoginWindow(QDialog):
         super().showEvent(event)
         
         # Load remembered username
-        from config import config
+        from config_mod import config
         remembered_username = config.get("remember_username", "")
         if remembered_username:
             self.username_input.setText(remembered_username)

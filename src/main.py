@@ -7,6 +7,12 @@ import sys
 import os
 from pathlib import Path
 
+# Add src directory to Python path to support imports from any working directory
+current_file = Path(__file__).resolve()
+src_dir = current_file.parent
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
 # Fix for PaddleOCR segfault on macOS
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -16,7 +22,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtCore import QThread
 
-from config import config
+from config_mod import config
 from database.db_manager import DatabaseManager
 from auth.auth_manager import AuthManager
 from gui.login_window import LoginWindow

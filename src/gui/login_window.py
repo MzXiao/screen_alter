@@ -188,23 +188,9 @@ class LoginWindow(QDialog):
         self.login_button.clicked.connect(self.handle_login)
         layout.addWidget(self.login_button)
         
-        # Register button
-        self.register_button = QPushButton("注册新账号")
-        self.register_button.setFont(QFont("Arial", 10))
-        self.register_button.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #4A90E2;
-                padding: 8px;
-                border: 1px solid #4A90E2;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: rgba(74, 144, 226, 0.1);
-            }
-        """)
-        self.register_button.clicked.connect(self.handle_register)
-        layout.addWidget(self.register_button)
+        # Registration is disabled
+        # self.register_button = QPushButton("注册新账号")
+        # ...
         
         card.setLayout(layout)
         return card

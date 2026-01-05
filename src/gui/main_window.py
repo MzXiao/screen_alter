@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QFileDialog, QMessageBox, QGroupBox, QLineEdit,
     QHeaderView, QAbstractItemView, QDialog
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 from datetime import datetime
 from pathlib import Path
@@ -17,13 +17,75 @@ from typing import Optional, Dict, Any, List
 
 from database.db_manager import DatabaseManager
 from monitor.screen_capture import ScreenCapture
-from monitor.ocr_detector import OCRDetector
 from monitor.image_detector import ImageDetector
+from monitor.paddle_ocr_detector import PaddleOCRDetector
 from alert.gui_alert import GUIAlert
 from config import config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class MonitoringWorker(QObject):
+    """Worker to handle OCR and image detection in a separate thread."""
+    
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    
+    def __init__(self, screen_capture, ocr_detector, image_detector, keywords, ref_images, region):
+        super().__init__()
+        self.screen_capture = screen_capture
+        self.ocr_detector = ocr_detector
+        self.image_detector = image_detector
+        self.keywords = keywords
+        self.ref_images = ref_images
+        self.region = region
+    
+    def run(self):
+        """Perform a single monitoring check."""
+        try:
+            # Capture screenshot
+            result = self.screen_capture.capture_and_save(region=self.region)
+            if not result:
+                self.error.emit("Failed to capture screenshot")
+                return
+            
+            screenshot, screenshot_path = result
+            
+            detected = False
+            detected_keyword = None
+            detection_method = None
+            similarity_score = None
+            
+            # OCR detection
+            if self.keywords and self.ocr_detector:
+                ocr_result = self.ocr_detector.detect_keywords(screenshot, self.keywords)
+                if ocr_result["detected"]:
+                    detected = True
+                    detected_keyword = ", ".join(ocr_result["matched_keywords"])
+                    detection_method = "ocr"
+            
+            # Image similarity detection
+            if self.ref_images and not detected:
+                img_result = self.image_detector.compare_with_references(screenshot, self.ref_images)
+                if img_result["detected"]:
+                    detected = True
+                    best_match = img_result["best_match"]
+                    detected_keyword = Path(best_match["path"]).name
+                    detection_method = "image_similarity"
+                    similarity_score = best_match["similarity"]
+            
+            self.finished.emit({
+                "detected": detected,
+                "detected_keyword": detected_keyword,
+                "detection_method": detection_method,
+                "similarity_score": similarity_score,
+                "screenshot_path": screenshot_path
+            })
+            
+        except Exception as e:
+            logger.error(f"Worker error: {e}")
+            self.error.emit(str(e))
 
 
 class MainWindow(QMainWindow):
@@ -65,7 +127,12 @@ class MainWindow(QMainWindow):
         self.ocr_detector = None
         self.image_detector = ImageDetector(config.get("similarity_threshold", 0.85))
         self.gui_alert = GUIAlert(config.root_dir / "resources")
-        logger.info("MainWindow: Detectors initialized")
+        
+        # New: Tracking for high-frequency monitoring
+        self.last_alert_time = 0
+        self.is_processing = False
+        self.monitor_thread = None
+        self.monitor_worker = None
         
         # Monitoring state
         self.is_monitoring = False
@@ -198,14 +265,14 @@ class MainWindow(QMainWindow):
         settings_row.addWidget(QLabel("监控间隔:"))
         
         self.interval_combo = QComboBox()
-        self.interval_combo.addItems(["30秒", "1分钟", "5分钟", "10分钟"])
+        self.interval_combo.addItems(["1秒", "5秒", "30秒", "1分钟", "5分钟"])
         self.interval_combo.currentIndexChanged.connect(self.save_config)
         settings_row.addWidget(self.interval_combo)
         
         settings_row.addSpacing(20)
         settings_row.addWidget(QLabel("OCR 引擎:"))
         self.ocr_engine_combo = QComboBox()
-        self.ocr_engine_combo.addItems(["pytesseract", "easyocr"])
+        self.ocr_engine_combo.addItems(["paddleocr", "pytesseract", "easyocr"])
         self.ocr_engine_combo.currentIndexChanged.connect(self.save_config)
         settings_row.addWidget(self.ocr_engine_combo)
         
@@ -401,7 +468,7 @@ class MainWindow(QMainWindow):
     def save_config(self):
         """Save current configuration."""
         # Get interval and engine
-        interval_map = {0: 30, 1: 60, 2: 300, 3: 600}
+        interval_map = {0: 1, 1: 5, 2: 30, 3: 60, 4: 300}
         interval = interval_map.get(self.interval_combo.currentIndex(), 60)
         ocr_engine = self.ocr_engine_combo.currentText()
         
@@ -557,23 +624,22 @@ class MainWindow(QMainWindow):
         # Initialize OCR detector if needed
         if keywords:
             try:
-                ocr_engine = self.user_config.get("ocr_engine", "pytesseract")
-                ocr_language = self.user_config.get("ocr_language", "chi_sim+eng")
+                ocr_engine = self.user_config.get("ocr_engine", "paddleocr")
                 logger.info(f"Initializing OCR detector with engine: {ocr_engine}")
-                self.ocr_detector = OCRDetector(ocr_engine, ocr_language)
-
+                if ocr_engine == "paddleocr":
+                    self.ocr_detector = PaddleOCRDetector()
+                else:
+                    from monitor.ocr_detector import OCRDetector
+                    self.ocr_detector = OCRDetector(ocr_engine)
             except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "OCR初始化失败",
-                    f"无法初始化OCR引擎: {str(e)}\n\n请确保已安装Tesseract OCR或EasyOCR"
-                )
+                QMessageBox.critical(self, "OCR初始化失败", f"无法初始化OCR引擎: {str(e)}")
                 return
         
         # Start monitoring
         self.is_monitoring = True
-        interval = self.user_config.get("monitor_interval", 60)
-        self.monitor_timer.start(interval * 1000)  # Convert to milliseconds
+        interval_map = {0: 1, 1: 5, 2: 30, 3: 60, 4: 300}
+        interval = interval_map.get(self.interval_combo.currentIndex(), 60)
+        self.monitor_timer.start(interval * 1000)
         
         # Update UI
         self.status_indicator.setStyleSheet("color: #28a745;")  # Green
@@ -583,9 +649,8 @@ class MainWindow(QMainWindow):
         
         # Emit signal
         self.monitoring_started.emit()
-        
-        logger.info("Monitoring started")
-        QMessageBox.information(self, "成功", "监控已启动")
+        logger.info(f"Monitoring started with interval: {interval}s")
+        QMessageBox.information(self, "成功", f"监控已启动 (间隔: {interval}秒)")
     
     def stop_monitoring(self):
         """Stop monitoring."""
@@ -604,72 +669,60 @@ class MainWindow(QMainWindow):
         logger.info("Monitoring stopped")
     
     def perform_monitoring_check(self):
-        """Perform a monitoring check."""
+        """Perform a monitoring check using background worker."""
+        if self.is_processing:
+            logger.debug("Previous check still in progress, skipping...")
+            return
+            
         try:
             # Get configuration
-            keywords = [self.keywords_list.item(i).text() 
-                       for i in range(self.keywords_list.count())]
+            keywords = [self.keywords_list.item(i).text() for i in range(self.keywords_list.count())]
             ref_images = self.user_config.get("reference_images", [])
-            engine = self.ocr_detector.engine if self.ocr_detector else "None"
             region = self.user_config.get("capture_region")
             
-            logger.info("--- Monitoring Check Started ---")
-            logger.info(f"Target: {region if region else 'Full Screen'}")
-            logger.info(f"OCR Engine: {engine}")
-            logger.info(f"Keywords: {keywords}")
-            logger.info(f"Ref Images: {[Path(p).name for p in ref_images]}")
-            logger.info("--------------------------------")
+            # Start worker thread
+            self.is_processing = True
+            self.monitor_thread = QThread()
+            self.monitor_worker = MonitoringWorker(
+                self.screen_capture, self.ocr_detector, self.image_detector,
+                keywords, ref_images, region
+            )
+            self.monitor_worker.moveToThread(self.monitor_thread)
             
-            # Capture screenshot
-            result = self.screen_capture.capture_and_save(region=region)
-            if not result:
-                logger.error("Failed to capture screenshot")
-                return
+            # Connect signals
+            self.monitor_thread.started.connect(self.monitor_worker.run)
+            self.monitor_worker.finished.connect(self.on_monitoring_finished)
+            self.monitor_worker.error.connect(self.on_monitoring_error)
+            self.monitor_worker.finished.connect(self.monitor_thread.quit)
+            self.monitor_worker.finished.connect(self.monitor_worker.deleteLater)
+            self.monitor_thread.finished.connect(self.monitor_thread.deleteLater)
             
-            screenshot, screenshot_path = result
+            self.monitor_thread.start()
+            
+        except Exception as e:
+            logger.error(f"Failed to start monitoring worker: {e}")
+            self.is_processing = False
 
-            
-            detected = False
-            detected_keyword = None
-            detection_method = None
-            similarity_score = None
-            
-            # OCR detection
-            if keywords and self.ocr_detector:
-                logger.info(f"Checking keywords using {self.ocr_detector.engine}...")
-                ocr_result = self.ocr_detector.detect_keywords(screenshot, keywords)
+    def on_monitoring_finished(self, result: dict):
+        """Handle completion of monitoring check."""
+        self.is_processing = False
+        
+        detected = result["detected"]
+        screenshot_path = result["screenshot_path"]
+        
+        if detected:
+            current_time = datetime.now().timestamp()
+            # 5-second alert interval requirement
+            if current_time - self.last_alert_time >= 5:
+                self.last_alert_time = current_time
                 
-                # Log a snippet of the extracted text to show what OCR sees
-                text_snippet = ocr_result["extracted_text"][:100].replace('\n', ' ')
-                logger.info(f"OCR Extracted: {text_snippet}...")
-                
-                if ocr_result["detected"]:
-                    detected = True
-                    detected_keyword = ", ".join(ocr_result["matched_keywords"])
-                    detection_method = "ocr"
-                    logger.info(f"OCR detection: {detected_keyword}")
-
-            
-            # Image similarity detection
-            if ref_images and not detected:
-                img_result = self.image_detector.compare_with_references(screenshot, ref_images)
-                if img_result["detected"]:
-                    detected = True
-                    best_match = img_result["best_match"]
-                    detected_keyword = Path(best_match["path"]).name
-                    detection_method = "image_similarity"
-                    similarity_score = best_match["similarity"]
-                    logger.info(f"Image detection: {detected_keyword} ({similarity_score:.2f})")
-            
-            # If detected, create alert and send notification
-            if detected:
                 # Record alert
                 alert_id = self.db.create_alert(
                     self.user_id,
-                    detected_keyword=detected_keyword,
+                    detected_keyword=result["detected_keyword"],
                     screenshot_path=screenshot_path,
-                    detection_method=detection_method,
-                    similarity_score=similarity_score,
+                    detection_method=result["detection_method"],
+                    similarity_score=result["similarity_score"],
                     alert_sent=False
                 )
                 
@@ -677,7 +730,7 @@ class MainWindow(QMainWindow):
                 self.db.create_check_log(
                     self.user_id,
                     "DETECTED",
-                    f"Detected {detection_method}: {detected_keyword}",
+                    f"Detected {result['detection_method']}: {result['detected_keyword']}",
                     screenshot_path
                 )
                 
@@ -687,35 +740,25 @@ class MainWindow(QMainWindow):
                 
                 if success and alert_id:
                     self.db.update_alert_sent_status(alert_id, True)
-                elif not success:
-                    logger.error("Failed to trigger GUI Alert")
-
-                # Refresh alert log
-                self.load_alert_log()
                 
-                # Pause monitoring after detection as requested
-                logger.info("Monitoring paused due to detection.")
-                self.stop_monitoring()
-                QMessageBox.information(self, "监控暂停", "检测到目标，监控已自动暂停。\n微信窗口已保留在屏幕上。")
+                # Refresh UI
+                self.load_alert_log()
             else:
-                logger.info("Check complete: No keywords or patterns detected.")
-                self.db.create_check_log(
-                    self.user_id,
-                    "SUCCESS",
-                    "No keywords or patterns detected",
-                    screenshot_path
-                )
-
-            # Cleanup old screenshots
-            self.screen_capture.cleanup_old_screenshots()
-            
-        except Exception as e:
-            logger.error(f"Monitoring check failed: {e}")
+                logger.debug("Detection occurred but alert skipped (within 5s interval)")
+        else:
+            # Check log for success
             self.db.create_check_log(
-                self.user_id,
-                "FAILED",
-                str(e)
+                self.user_id, "SUCCESS", "No keywords or patterns detected", screenshot_path
             )
+            
+        # Optional: cleanup old screenshots periodically
+        # self.screen_capture.cleanup_old_screenshots()
+
+    def on_monitoring_error(self, error_msg: str):
+        """Handle error from monitoring worker."""
+        self.is_processing = False
+        logger.error(f"Monitoring check worker failed: {error_msg}")
+        self.db.create_check_log(self.user_id, "FAILED", error_msg)
 
     def closeEvent(self, event):
         """Handle window close event."""

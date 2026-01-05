@@ -36,11 +36,11 @@ class Application:
         self.app.setApplicationName(config.APP_NAME)
         self.app.setApplicationVersion(config.APP_VERSION)
         
-        # Initialize database
-        self.db_manager = DatabaseManager(config.db_path)
-        
         # Initialize auth manager
-        self.auth_manager = AuthManager(self.db_manager)
+        self.auth_manager = AuthManager()
+        
+        # Initialize database (refactored as API manager)
+        self.db_manager = DatabaseManager(auth_manager=self.auth_manager)
         
         # Windows
         self.login_window = None

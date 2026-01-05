@@ -37,3 +37,15 @@ py2app==0.28.9
 
 # Additional dependencies for Python 3.13
 numpy>=1.26.0,<2.0.0  # Required by opencv-python and easyocr
+
+# Backend
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+mysql-connector-python==9.1.0
+PyJWT==2.10.1
+python-multipart==0.0.20
+
+# PaddleOCR
+paddlepaddle==2.6.2
+paddleocr==2.9.1

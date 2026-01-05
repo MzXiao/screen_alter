@@ -226,11 +226,17 @@ class GUIAlert:
                 # Try to activate WeChat on Windows
                 import os
                 
+                logger.info("=== Starting WeChat activation on Windows ===")
+                
                 # First, try to find and activate existing window
-                wechat_activated = self._activate_wechat_window_windows()
-                if wechat_activated:
-                    logger.info("WeChat window activated successfully")
-                    return True
+                try:
+                    wechat_activated = self._activate_wechat_window_windows()
+                    if wechat_activated:
+                        logger.info("✅ WeChat window activated successfully")
+                        return True
+                except Exception as e:
+                    logger.error(f"❌ Windows API activation failed: {e}")
+                    logger.error(traceback.format_exc())
                 
                 # If no window found, try to start WeChat
                 logger.info("No active WeChat window found, attempting to start WeChat...")
@@ -419,29 +425,39 @@ class GUIAlert:
             import ctypes
             from ctypes import wintypes
             
+            logger.info("🔍 Searching for WeChat window...")
+            
             # Define Windows API functions
             user32 = ctypes.windll.user32
             
             # Find window by class name or title
             # WeChat window titles usually contain "微信" or "WeChat"
             hwnd = None
+            found_windows = []  # Track all WeChat-like windows for debugging
             
             # Callback function for EnumWindows
             def enum_windows_callback(window_hwnd, _):
                 nonlocal hwnd
-                if user32.IsWindowVisible(window_hwnd):
-                    length = user32.GetWindowTextLengthW(window_hwnd)
-                    if length > 0:
-                        buff = ctypes.create_unicode_buffer(length + 1)
-                        user32.GetWindowTextW(window_hwnd, buff, length + 1)
-                        title = buff.value
-                        
-                        # Check if this is a WeChat window
-                        if '微信' in title or 'WeChat' in title:
-                            # Skip minimized or hidden windows
-                            if not user32.IsIconic(window_hwnd):
-                                hwnd = window_hwnd
-                                return False  # Stop enumeration
+                try:
+                    if user32.IsWindowVisible(window_hwnd):
+                        length = user32.GetWindowTextLengthW(window_hwnd)
+                        if length > 0:
+                            buff = ctypes.create_unicode_buffer(length + 1)
+                            user32.GetWindowTextW(window_hwnd, buff, length + 1)
+                            title = buff.value
+                            
+                            # Check if this is a WeChat window
+                            if '微信' in title or 'WeChat' in title:
+                                is_minimized = user32.IsIconic(window_hwnd)
+                                found_windows.append(f"{title} (hwnd: {window_hwnd}, minimized: {is_minimized})")
+                                
+                                # Accept ANY WeChat window (even if minimized)
+                                # We'll restore it later if needed
+                                if hwnd is None:  # Take the first one found
+                                    hwnd = window_hwnd
+                                    return False  # Stop enumeration
+                except Exception as e:
+                    logger.debug(f"Error checking window {window_hwnd}: {e}")
                 return True  # Continue enumeration
             
             # Enumerate all windows
@@ -450,53 +466,131 @@ class GUIAlert:
                 wintypes.HWND,
                 wintypes.LPARAM
             )
-            user32.EnumWindows(EnumWindowsProc(enum_windows_callback), 0)
+            
+            logger.info("Enumerating windows...")
+            enum_result = user32.EnumWindows(EnumWindowsProc(enum_windows_callback), 0)
+            logger.info(f"EnumWindows completed. Result: {enum_result}")
+            
+            # Log all found WeChat windows
+            if found_windows:
+                logger.info(f"Found {len(found_windows)} WeChat window(s):")
+                for win in found_windows:
+                    logger.info(f"  - {win}")
+            else:
+                logger.warning("⚠️  No windows with '微信' or 'WeChat' in title found!")
             
             if hwnd:
-                logger.debug(f"Found WeChat window handle: {hwnd}")
+                is_minimized = user32.IsIconic(hwnd)
+                logger.info(f"✅ Selected WeChat window handle: {hwnd} (minimized: {is_minimized})")
                 
                 # Restore if minimized
-                if user32.IsIconic(hwnd):
-                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
-                    time.sleep(0.3)
+                if is_minimized:
+                    logger.info("🔄 Window is minimized, restoring...")
+                    result = user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
+                    logger.info(f"ShowWindow(RESTORE) result: {result}")
+                    
+                    # Give it more time to restore
+                    time.sleep(0.5)
+                    
+                    # Verify restoration
+                    if user32.IsIconic(hwnd):
+                        logger.warning("⚠️  Window still minimized after restore attempt")
+                    else:
+                        logger.info("✅ Window successfully restored")
                 
                 # Bring to foreground
                 # Sometimes SetForegroundWindow fails, need to work around
                 try:
+                    logger.info("Attempting to bring window to foreground...")
+                    
                     # Get current foreground window
                     current_hwnd = user32.GetForegroundWindow()
+                    logger.info(f"Current foreground window: {current_hwnd}")
                     
                     # Get thread IDs
                     current_thread = user32.GetWindowThreadProcessId(current_hwnd, None)
                     target_thread = user32.GetWindowThreadProcessId(hwnd, None)
+                    logger.info(f"Current thread: {current_thread}, Target thread: {target_thread}")
                     
                     # Attach input to allow SetForegroundWindow to work
                     if current_thread != target_thread:
-                        user32.AttachThreadInput(current_thread, target_thread, True)
+                        logger.info("Attaching thread input...")
+                        attach_result = user32.AttachThreadInput(current_thread, target_thread, True)
+                        logger.info(f"AttachThreadInput result: {attach_result}")
                     
                     # Set foreground
-                    user32.SetForegroundWindow(hwnd)
-                    user32.BringWindowToTop(hwnd)
-                    user32.ShowWindow(hwnd, 5)  # SW_SHOW = 5
+                    logger.info("Setting foreground window...")
+                    fg_result = user32.SetForegroundWindow(hwnd)
+                    logger.info(f"SetForegroundWindow result: {fg_result}")
+                    
+                    top_result = user32.BringWindowToTop(hwnd)
+                    logger.info(f"BringWindowToTop result: {top_result}")
+                    
+                    show_result = user32.ShowWindow(hwnd, 5)  # SW_SHOW = 5
+                    logger.info(f"ShowWindow(SHOW) result: {show_result}")
                     
                     # Detach input
                     if current_thread != target_thread:
-                        user32.AttachThreadInput(current_thread, target_thread, False)
+                        logger.info("Detaching thread input...")
+                        detach_result = user32.AttachThreadInput(current_thread, target_thread, False)
+                        logger.info(f"DetachThreadInput result: {detach_result}")
                     
-                    logger.info("✅ WeChat window activated and brought to foreground")
+                    # Verify it's now foreground
+                    new_foreground = user32.GetForegroundWindow()
+                    if new_foreground == hwnd:
+                        logger.info("✅✅ WeChat window successfully activated and in foreground!")
+                    else:
+                        logger.warning(f"⚠️  Window activated but foreground is: {new_foreground} (expected: {hwnd})")
+                    
                     return True
                 except Exception as e:
-                    logger.warning(f"Failed to bring window to foreground: {e}")
+                    logger.error(f"❌ Failed to bring window to foreground: {e}")
+                    logger.error(traceback.format_exc())
                     # Still try ShowWindow as fallback
+                    logger.info("Trying fallback: ShowWindow only...")
                     user32.ShowWindow(hwnd, 5)  # SW_SHOW = 5
                     return True
             else:
-                logger.debug("No WeChat window found")
+                logger.warning("❌ No WeChat window found at all")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error activating WeChat window on Windows: {e}")
+            logger.error(f"❌ Critical error activating WeChat window on Windows: {e}")
             logger.error(traceback.format_exc())
+            return False
+    
+    def _activate_wechat_fallback(self) -> bool:
+        """
+        Fallback method to activate WeChat using keyboard shortcuts.
+        Uses Alt+Tab to cycle through windows.
+        
+        Returns:
+            True if attempted, False otherwise
+        """
+        try:
+            logger.info("🔄 Using fallback activation method (Alt+Tab)...")
+            
+            # Press Alt+Tab multiple times to find WeChat
+            # This is a best-effort approach
+            import pyautogui
+            
+            # Hold Alt and press Tab up to 10 times
+            pyautogui.keyDown('alt')
+            for i in range(10):
+                pyautogui.press('tab')
+                time.sleep(0.1)
+                
+                # Check if we can find the call button now
+                # (This is a rough heuristic)
+                time.sleep(0.2)
+            
+            pyautogui.keyUp('alt')
+            
+            logger.info("⚠️  Fallback activation attempted (may not be accurate)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Fallback activation failed: {e}")
             return False
     
     def _center_wechat_window_windows(self) -> bool:

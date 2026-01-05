@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 class ScreenCapture:
     """Manages screen capture operations."""
     
-    def __init__(self, screenshots_dir: Path, retention_days: int = 7, max_count: int = 100):
+    def __init__(self, screenshots_dir: Path, retention_days: int = 7, max_count: int = 100, screenshot_size: int = 500):
         """
         Initialize screen capture.
         
@@ -27,10 +27,12 @@ class ScreenCapture:
             screenshots_dir: Directory to save screenshots
             retention_days: Number of days to keep screenshots
             max_count: Maximum number of screenshots to keep
+            screenshot_size: Size of screenshot in pixels (for center region capture)
         """
         self.screenshots_dir = screenshots_dir
         self.retention_days = retention_days
         self.max_count = max_count
+        self.screenshot_size = screenshot_size
         self.screenshots_dir.mkdir(parents=True, exist_ok=True)
     
     def capture_screen(self, region: Optional[Tuple[int, int, int, int]] = None) -> Optional[Image.Image]:
@@ -39,7 +41,7 @@ class ScreenCapture:
         
         Args:
             region: Optional tuple of (left, top, width, height) for specific region.
-                    If None and config specifies, can be center square.
+                    If None, captures the full primary monitor.
         
         Returns:
             PIL Image object or None if capture fails
@@ -55,8 +57,8 @@ class ScreenCapture:
                         "height": region[3]
                     }
                 else:
-                    # Capture center square by default if no region provided
-                    monitor = self._get_center_region(sct.monitors[1])
+                    # Capture full primary monitor (monitor 1)
+                    monitor = sct.monitors[1]
                 
                 # Capture screenshot
                 sct_img = sct.grab(monitor)
@@ -64,7 +66,7 @@ class ScreenCapture:
                 # Convert to PIL Image
                 img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
                 
-                logger.debug(f"Screenshot captured: {img.size}")
+                logger.info(f"Screenshot captured: {img.size} (region: {'custom' if region else 'full screen'})")
                 return img
                 
         except Exception as e:

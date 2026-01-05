@@ -12,22 +12,17 @@ mss==9.0.2
 
 # OCR Engines
 pytesseract==0.3.13
-# easyocr==1.7.2
 
 # Image Analysis
 imagehash==4.3.1
-#opencv-python==4.10.0.84
-#opencv-contrib-python==4.10.0.84
-#opencv-python-headless==4.10.0.84
-# Security
-pystray==0.19.5
 
 # Security
+pystray==0.19.5
 bcrypt==4.2.1
 
 # Utilities
 python-dotenv==1.0.1
-requests==2.31.0  # For PaddleOCR HTTP client
+requests==2.31.0
 
 # Testing
 pytest==8.3.4
@@ -37,8 +32,8 @@ pytest-cov==6.0.0
 PyInstaller==6.11.1
 py2app==0.28.9
 
-# Additional dependencies for Python 3.13
-numpy>=1.26.0,<2.0.0  # Required by opencv-python and easyocr
+# Additional dependencies
+numpy>=1.26.0,<2.0.0
 
 # Backend
 fastapi==0.115.6
@@ -47,8 +42,3 @@ sqlalchemy==2.0.36
 mysql-connector-python==9.1.0
 PyJWT==2.10.1
 python-multipart==0.0.20
-
-# PaddleOCR - 已移除，改用独立服务 (paddleocr_service/)
-# 主应用不再打包 PaddleOCR，通过 HTTP API 调用独立服务
-# 如需使用 PaddleOCR，请启动 paddleocr_service/server.py
-# 或运行 paddleocr_service/dist/PaddleOCRService.exe

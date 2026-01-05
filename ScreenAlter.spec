@@ -9,9 +9,12 @@ block_cipher = None
 base_dir = Path('.')
 
 # Collect all data files
+# Include all files from config and resources directories
 datas = [
-    ('config', 'config'),
-    ('resources', 'resources'),
+    ('config/*.json', 'config'),
+    ('config/*.md', 'config'),
+    ('resources/wechat/*.png', 'resources/wechat'),
+    ('resources/icons/*.ico', 'resources/icons'),
 ]
 
 # Hidden imports to ensure all modules are included
@@ -31,6 +34,9 @@ hiddenimports = [
     'sqlite3',
     'json',
     'logging',
+    'ctypes',  # For Windows API calls
+    'ctypes.wintypes',  # Windows types
+    'pyautogui',  # Window activation fallback
 ]
 
 a = Analysis(

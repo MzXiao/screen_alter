@@ -120,7 +120,9 @@ class MainWindow(QMainWindow):
         # Initialize components
         self.screen_capture = ScreenCapture(
             config.screenshots_dir,
-            config.get("screenshot_retention_days", 7)
+            config.get("screenshot_retention_days", 7),
+            config.get("screenshot_limit", 100),
+            config.get("screenshot_size", 500)
         )
         logger.info("MainWindow: Screen capture initialized")
         

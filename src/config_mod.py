@@ -76,6 +76,7 @@ class Config:
             "screenshot_retention_days": self.DEFAULT_SCREENSHOT_RETENTION_DAYS,
             "screenshot_limit": 100,
             "capture_region": None,  # (left, top, width, height) or None for full screen
+            "screenshot_size": 500,  # Screenshot size in pixels (for center region capture)
             "keywords": [],
             "reference_images": [],
             "auto_start_monitoring": False,

@@ -1,0 +1,24 @@
+{
+  "monitor_interval": 60,
+  "ocr_engine": "paddleocr",
+  "ocr_language": "chi_sim+eng",
+  "similarity_threshold": 0.85,
+  "screenshot_retention_days": 7,
+  "screenshot_limit": 100,
+  "capture_region": null,
+  "keywords": [],
+  "reference_images": [],
+  "auto_start_monitoring": false,
+  "backend_url": "http://localhost:8000",
+  
+  "_comment_paddleocr": "PaddleOCR 服务配置",
+  "paddleocr_service_url": "http://localhost:5000",
+  
+  "_comment_wechat": "微信功能配置（可选）",
+  "wechat_enabled": false,
+  "wechat_path": "",
+  
+  "_comment_wechat_usage": "如果 wechat_enabled 为 true，程序会尝试启动微信",
+  "_comment_wechat_path": "留空则自动查找，或手动指定完整路径，如: C:/Program Files/Tencent/WeChat/WeChat.exe",
+  "_comment_wechat_note": "注意：Windows 路径中的反斜杠需要写成双反斜杠 \\\\ 或使用正斜杠 /"
+}

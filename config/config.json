@@ -1,0 +1,17 @@
+{
+  "monitor_interval": 60,
+  "ocr_engine": "pytesseract",
+  "ocr_language": "chi_sim+eng",
+  "similarity_threshold": 0.85,
+  "screenshot_retention_days": 7,
+  "screenshot_limit": 100,
+  "capture_region": null,
+  "keywords": [],
+  "reference_images": [],
+  "auto_start_monitoring": false,
+  "remember_username": "admin",
+  "backend_url": "http://localhost:8000",
+  "paddleocr_service_url": "http://localhost:5000",
+  "wechat_enabled": true,
+  "wechat_path": "D:\\software\\Weixin\\Weixin.exe"
+}

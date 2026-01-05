@@ -43,6 +43,9 @@ screenshots/
 logs/
 *.log
 
+
+
+
 # PyInstaller
 *.spec
 

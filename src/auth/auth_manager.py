@@ -19,9 +19,10 @@ class AuthManager:
         Initialize authentication manager.
         
         Args:
-            db_manager: Deprecated, kept for backward compatibility
+            db_manager: Database manager instance
         """
-        self.backend_url = config.BACKEND_URL
+        self.backend_url = config.get("backend_url")
+        self.db_manager = db_manager
         self.current_user: Optional[Dict[str, Any]] = None
         self.access_token: Optional[str] = None
     
@@ -48,10 +49,21 @@ class AuthManager:
             if response.status_code == 200:
                 result = response.json()
                 self.access_token = result.get("access_token")
+                user_id = result.get("user_id")
+                username_val = result.get("username")
+                
                 self.current_user = {
-                    'id': result.get("user_id"),
-                    'username': result.get("username"),
+                    'id': user_id,
+                    'username': username_val,
                 }
+                
+                # Sync user to local database
+                if self.db_manager:
+                    try:
+                        self.db_manager.ensure_user_exists(user_id, username_val)
+                    except Exception as e:
+                        logger.error(f"Failed to sync user to local DB: {e}")
+                
                 logger.info(f"User '{username}' logged in successfully via API")
                 return True, "登录成功"
             elif response.status_code == 401:
@@ -63,6 +75,10 @@ class AuthManager:
         except requests.exceptions.RequestException as e:
             logger.error(f"Backend connection error during login: {e}")
             return False, "无法连接到服务器，请检查网络"
+
+    def set_db_manager(self, db_manager):
+        """Set database manager."""
+        self.db_manager = db_manager
     
     def register(self, username: str, password: str) -> tuple[bool, str]:
         """

@@ -17,11 +17,13 @@ class Config:
     APP_VERSION = "1.0.0"
     
     # Backend configuration
-    BACKEND_URL = "http://localhost:8000"
+    # Backend configuration
+    # BACKEND_URL is now loaded from config.json
+
     
     # Default settings
     DEFAULT_MONITOR_INTERVAL = 60  # seconds
-    DEFAULT_OCR_ENGINE = "paddleocr"  # or "pytesseract", "easyocr"
+    DEFAULT_OCR_ENGINE = "paddleocr"  # or "pytesseract"
     DEFAULT_OCR_LANGUAGE = "chi_sim+eng"  # Chinese simplified + English
     DEFAULT_SIMILARITY_THRESHOLD = 0.85  # for image similarity (0-1)
     DEFAULT_SCREENSHOT_RETENTION_DAYS = 7
@@ -77,6 +79,7 @@ class Config:
             "keywords": [],
             "reference_images": [],
             "auto_start_monitoring": False,
+            "backend_url": "http://localhost:8000",
         }
     
     def save(self):

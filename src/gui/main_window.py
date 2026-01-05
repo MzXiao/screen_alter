@@ -272,7 +272,7 @@ class MainWindow(QMainWindow):
         settings_row.addSpacing(20)
         settings_row.addWidget(QLabel("OCR 引擎:"))
         self.ocr_engine_combo = QComboBox()
-        self.ocr_engine_combo.addItems(["paddleocr", "pytesseract", "easyocr"])
+        self.ocr_engine_combo.addItems(["paddleocr", "pytesseract"])
         self.ocr_engine_combo.currentIndexChanged.connect(self.save_config)
         settings_row.addWidget(self.ocr_engine_combo)
         
@@ -628,6 +628,9 @@ class MainWindow(QMainWindow):
                 logger.info(f"Initializing OCR detector with engine: {ocr_engine}")
                 if ocr_engine == "paddleocr":
                     self.ocr_detector = PaddleOCRDetector()
+                    # Pre-initialize in main thread to avoid macOS background thread segfaults
+                    logger.info("Pre-initializing PaddleOCR in main thread...")
+                    self.ocr_detector._initialize_ocr()
                 else:
                     from monitor.ocr_detector import OCRDetector
                     self.ocr_detector = OCRDetector(ocr_engine)
@@ -712,39 +715,39 @@ class MainWindow(QMainWindow):
         
         if detected:
             current_time = datetime.now().timestamp()
-            # 5-second alert interval requirement
-            if current_time - self.last_alert_time >= 5:
-                self.last_alert_time = current_time
-                
-                # Record alert
-                alert_id = self.db.create_alert(
-                    self.user_id,
-                    detected_keyword=result["detected_keyword"],
-                    screenshot_path=screenshot_path,
-                    detection_method=result["detection_method"],
-                    similarity_score=result["similarity_score"],
-                    alert_sent=False
-                )
-                
-                # Record check log
-                self.db.create_check_log(
-                    self.user_id,
-                    "DETECTED",
-                    f"Detected {result['detection_method']}: {result['detected_keyword']}",
-                    screenshot_path
-                )
-                
-                # Trigger GUI Alert (WeChat Call)
-                logger.info("Triggering GUI Alert (WeChat Call)...")
-                success = self.gui_alert.trigger_wechat_call()
-                
-                if success and alert_id:
-                    self.db.update_alert_sent_status(alert_id, True)
-                
-                # Refresh UI
-                self.load_alert_log()
-            else:
-                logger.debug("Detection occurred but alert skipped (within 5s interval)")
+            
+            # Record alert
+            alert_id = self.db.create_alert(
+                self.user_id,
+                detected_keyword=result["detected_keyword"],
+                screenshot_path=screenshot_path,
+                detection_method=result["detection_method"],
+                similarity_score=result["similarity_score"],
+                alert_sent=False
+            )
+            
+            # Record check log
+            self.db.create_check_log(
+                self.user_id,
+                "DETECTED",
+                f"Detected {result['detection_method']}: {result['detected_keyword']}",
+                screenshot_path
+            )
+            
+            # Trigger GUI Alert (WeChat Call)
+            logger.info("Triggering GUI Alert (WeChat Call)...")
+            success = self.gui_alert.trigger_wechat_call()
+            
+            if success and alert_id:
+                self.db.update_alert_sent_status(alert_id, True)
+            
+            # Refresh UI
+            self.load_alert_log()
+
+            # Stop monitoring immediately after detection
+            logger.info("Target detected, stopping monitoring...")
+            self.stop_monitoring()
+            QMessageBox.information(self, "监控已停止", f"检测到目标: {result['detected_keyword']}，监控已自动停止。")
         else:
             # Check log for success
             self.db.create_check_log(

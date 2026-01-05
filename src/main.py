@@ -4,7 +4,15 @@ Main entry point for the screen monitoring and alert application.
 """
 
 import sys
+import os
 from pathlib import Path
+
+# Fix for PaddleOCR segfault on macOS
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtCore import QThread
 
@@ -18,10 +26,12 @@ from utils.system_tray import SystemTray
 
 from utils.logger import setup_logger, get_logger
 
+import logging
 # Set up logging
 setup_logger(
     "",  # Root logger
-    log_file=config.logs_dir / "app.log"
+    log_file=config.logs_dir / "app.log",
+    level=logging.DEBUG
 )
 logger = get_logger("screen_monitor")
 
@@ -41,6 +51,9 @@ class Application:
         
         # Initialize database (refactored as API manager)
         self.db_manager = DatabaseManager(auth_manager=self.auth_manager)
+        
+        # Link auth_manager to db_manager for local user sync
+        self.auth_manager.set_db_manager(self.db_manager)
         
         # Windows
         self.login_window = None

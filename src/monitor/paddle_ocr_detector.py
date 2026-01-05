@@ -36,17 +36,41 @@ class PaddleOCRDetector:
         self.lang = lang
         self.use_gpu = use_gpu
         self.ocr = None
+        self._initialized = False
         
-        if PADDLE_AVAILABLE:
-            try:
-                # Initialize PaddleOCR
-                # show_log=False to reduce console noise
-                self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu, show_log=False)
-                logger.info(f"PaddleOCR initialized (lang={lang}, gpu={use_gpu})")
-            except Exception as e:
-                logger.error(f"Failed to initialize PaddleOCR: {e}")
-                self.ocr = None
-    
+        # Don't initialize here to avoid thread issues
+        # and to speed up main window startup
+        logger.debug(f"PaddleOCRDetector created (lang={lang}, gpu={use_gpu})")
+
+    def _initialize_ocr(self):
+        """Initialize PaddleOCR instance lazily."""
+        if self._initialized:
+            return True
+            
+        if not PADDLE_AVAILABLE:
+            logger.error("PaddleOCR package not available")
+            return False
+            
+        try:
+            logger.info(f"Initializing PaddleOCR (lang={self.lang}, gpu={self.use_gpu})...")
+            # show_log=False to reduce console noise
+            from paddleocr import PaddleOCR
+            self.ocr = PaddleOCR(
+                use_angle_cls=False, # Changed from True to False for macOS stability
+                lang=self.lang, 
+                use_gpu=self.use_gpu, 
+                show_log=False,
+                enable_mkldnn=False,
+                use_mp=False
+            )
+            self._initialized = True
+            logger.info("PaddleOCR initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to initialize PaddleOCR: {e}")
+            self._initialized = False
+            return False
+
     def extract_text(self, image: Image.Image) -> str:
         """
         Extract text from image using PaddleOCR.
@@ -57,16 +81,20 @@ class PaddleOCRDetector:
         Returns:
             Extracted text string
         """
-        if not self.ocr:
-            logger.error("PaddleOCR not initialized")
+        if not self._initialize_ocr():
             return ""
             
         try:
             # Convert PIL Image to numpy array (RGB)
+            logger.debug("Converting image to numpy array...")
             img_array = np.array(image.convert('RGB'))
+            logger.debug(f"Image array shape: {img_array.shape}")
             
             # Perform OCR
-            result = self.ocr.ocr(img_array, cls=True)
+            logger.debug("Starting PaddleOCR inference (ocr.ocr)...")
+            # Set cls=False to see if angle classification is the cause
+            result = self.ocr.ocr(img_array, cls=False)
+            logger.debug("PaddleOCR inference complete")
             
             # Parse result
             # PaddleOCR returns a list of lists: [[[[box], [text, confidence]], ...]]

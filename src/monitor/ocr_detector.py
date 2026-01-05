@@ -15,16 +15,27 @@ logger = get_logger(__name__)
 try:
     import pytesseract
     PYTESSERACT_AVAILABLE = True
+    import platform
+    if platform.system() == "Darwin":
+        # 针对 Mac Homebrew 路径进行显式指定
+        pytesseract.pytesseract.tesseract_cmd = r'/opt/homebrew/bin/tesseract'
+    elif platform.system() == "Windows":
+         # Windows下通常需要用户自行安装Tesseract并配置环境变量，或者在此指定默认路径
+         # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+         pass
+    
+    # 测试一下
+    try:
+        logger.info(f"Tesseract version check: {pytesseract.get_tesseract_version()}")
+    except Exception as e:
+        logger.warning(f"Tesseract check failed (might be not installed or path issue): {e}")
+
+
 except ImportError:
     PYTESSERACT_AVAILABLE = False
     logger.warning("pytesseract not available")
 
-try:
-    import easyocr
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
-    logger.warning("easyocr not available")
+
 
 
 class OCRDetector:
@@ -35,34 +46,19 @@ class OCRDetector:
         Initialize OCR detector.
         
         Args:
-            engine: OCR engine to use ('pytesseract' or 'easyocr')
+            engine: OCR engine to use ('pytesseract')
             language: Language(s) for OCR
         """
         self.engine = engine
         self.language = language
-        self.easyocr_reader = None
         
         # Validate engine availability
         if engine == "pytesseract" and not PYTESSERACT_AVAILABLE:
             raise RuntimeError("pytesseract is not installed")
-        elif engine == "easyocr" and not EASYOCR_AVAILABLE:
-            raise RuntimeError("easyocr is not installed")
         
-        # Initialize EasyOCR reader if needed
-        if engine == "easyocr" and EASYOCR_AVAILABLE:
-            try:
-                # Convert language format (chi_sim -> ch_sim, eng -> en)
-                lang_codes = []
-                if "chi_sim" in language or "chi" in language:
-                    lang_codes.append("ch_sim")
-                if "eng" in language or "en" in language:
-                    lang_codes.append("en")
-                
-                self.easyocr_reader = easyocr.Reader(lang_codes or ['ch_sim', 'en'])
-                logger.info(f"EasyOCR initialized with languages: {lang_codes}")
-            except Exception as e:
-                logger.error(f"Failed to initialize EasyOCR: {e}")
-                raise
+        # We only support pytesseract here (plus paddleocr which is separate)
+        if engine != "pytesseract":
+             raise ValueError(f"Unknown or unsupported engine: {engine}")
     
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
         """
@@ -108,37 +104,7 @@ class OCRDetector:
             logger.error(f"pytesseract extraction failed: {e}")
             return ""
     
-    def extract_text_easyocr(self, image: Image.Image) -> str:
-        """
-        Extract text using EasyOCR.
-        
-        Args:
-            image: Input image
-        
-        Returns:
-            Extracted text
-        """
-        try:
-            if not self.easyocr_reader:
-                logger.error("EasyOCR reader not initialized")
-                return ""
-            
-            # EasyOCR works with numpy arrays or file paths
-            import numpy as np
-            img_array = np.array(image)
-            
-            # Extract text
-            results = self.easyocr_reader.readtext(img_array)
-            
-            # Combine all detected text
-            text = " ".join([result[1] for result in results])
-            
-            logger.debug(f"Extracted text (easyocr): {text[:100]}...")
-            return text
-            
-        except Exception as e:
-            logger.error(f"EasyOCR extraction failed: {e}")
-            return ""
+
     
     def extract_text(self, image: Image.Image) -> str:
         """
@@ -152,8 +118,6 @@ class OCRDetector:
         """
         if self.engine == "pytesseract":
             return self.extract_text_pytesseract(image)
-        elif self.engine == "easyocr":
-            return self.extract_text_easyocr(image)
         else:
             logger.error(f"Unknown OCR engine: {self.engine}")
             return ""
@@ -237,6 +201,4 @@ class OCRDetector:
         """
         if engine == "pytesseract":
             return PYTESSERACT_AVAILABLE
-        elif engine == "easyocr":
-            return EASYOCR_AVAILABLE
         return False

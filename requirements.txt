@@ -1,4 +1,4 @@
-# Python 3.13 Compatible Dependencies
+# Python 3.11 Compatible Dependencies
 
 # GUI Framework
 PyQt5==5.15.11
@@ -12,12 +12,13 @@ mss==9.0.2
 
 # OCR Engines
 pytesseract==0.3.13
-easyocr==1.7.2
+# easyocr==1.7.2
 
 # Image Analysis
 imagehash==4.3.1
-opencv-python==4.10.0.84
-
+#opencv-python==4.10.0.84
+#opencv-contrib-python==4.10.0.84
+#opencv-python-headless==4.10.0.84
 # Security
 pystray==0.19.5
 

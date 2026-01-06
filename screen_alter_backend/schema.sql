@@ -50,3 +50,7 @@ CREATE TABLE IF NOT EXISTS monitoring_logs (
     INDEX idx_user_time (user_id, check_time),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+insert into screen_alter.users (id, username, password_hash, created_at, last_login)
+values  (1, 'admin', '$2b$12$uy2GVBPsoMwW0JjObM882OGDFe/wXy1nm7oZm3piT5HXebihRv272', '2026-01-05 13:15:20', null);

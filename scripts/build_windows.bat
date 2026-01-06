@@ -27,7 +27,8 @@ if exist dist rmdir /s /q dist
 echo.
 echo Building with PyInstaller...
 echo (PaddleOCR excluded - using C/S mode)
-pyinstaller ScreenAlter.spec
+:: Added --noconfirm to avoid prompts
+pyinstaller --noconfirm ScreenAlter.spec
 
 echo.
 echo ========================================
@@ -50,4 +51,6 @@ echo To use Tesseract:
 echo   1. Install Tesseract OCR
 echo   2. Select "pytesseract" in app settings
 echo.
-pause
+
+:: Only pause if not running in CI
+if "%GITHUB_ACTIONS%"=="" pause

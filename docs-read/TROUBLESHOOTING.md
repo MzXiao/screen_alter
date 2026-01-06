@@ -510,7 +510,7 @@ netstat -ano | findstr :5000
 2. **检查文档**：
    - [架构说明](ARCHITECTURE_CS_MODE.md)
    - [快速开始](QUICK_START_STANDALONE.md)
-   - [OCR 引擎指南](docs/OCR_ENGINE_GUIDE.md)
+   - [OCR 引擎指南](../docs/OCR_ENGINE_GUIDE.md)
 
 3. **提交 Issue**：
    - 描述问题

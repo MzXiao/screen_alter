@@ -158,7 +158,7 @@ python server.py
 [ ] 不使用 OCR - 仅图像检测
 ```
 
-详细对比：**[OCR 引擎选择指南](docs/OCR_ENGINE_GUIDE.md)**
+详细对比：**[OCR 引擎选择指南](../docs/OCR_ENGINE_GUIDE.md)**
 
 ## 调试模式
 

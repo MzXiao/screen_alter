@@ -131,5 +131,5 @@ ERROR: tesseract is not installed
 
 ## 📖 详细文档
 
-- 完整对比和安装指南：[docs/OCR_ENGINE_GUIDE.md](docs/OCR_ENGINE_GUIDE.md)
+- 完整对比和安装指南：[docs/OCR_ENGINE_GUIDE.md](../docs/OCR_ENGINE_GUIDE.md)
 - 打包指南：[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)

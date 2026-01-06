@@ -7,7 +7,7 @@ import pyautogui
 from pathlib import Path
 
 # Add src to path
-root_dir = Path("/Users/xiao/work/partner/screen_alter")
+root_dir = Path("/")
 src_dir = root_dir / "src"
 sys.path.append(str(src_dir))
 

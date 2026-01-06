@@ -13,7 +13,7 @@ def find_from_config():
     """从配置文件读取微信路径"""
     print("\n[1] 从配置文件查找...")
     
-    config_file = Path("config/config.json")
+    config_file = Path("../config/config.json")
     
     if not config_file.exists():
         print("  ⚠️ 配置文件不存在")
@@ -66,7 +66,7 @@ def find_from_common_paths():
 
 def save_to_config(wechat_path):
     """保存微信路径到配置文件"""
-    config_file = Path("config/config.json")
+    config_file = Path("../config/config.json")
     
     try:
         # 读取现有配置

@@ -81,7 +81,7 @@ copy config.example.json config.json
 
 ### 完整配置
 
-参考 `config.example.json` 或查看 [配置指南](../CONFIG_GUIDE.md)。
+参考 `config.example.json` 或查看 [配置指南](../docs-read/CONFIG_GUIDE.md)。
 
 ---
 
@@ -167,7 +167,7 @@ python -m json.tool config.json
 
 ## 📚 详细文档
 
-完整的配置说明请查看：**[CONFIG_GUIDE.md](../CONFIG_GUIDE.md)**
+完整的配置说明请查看：**[CONFIG_GUIDE.md](../docs-read/CONFIG_GUIDE.md)**
 
 包含：
 - 📝 所有配置项详细说明
@@ -179,8 +179,8 @@ python -m json.tool config.json
 
 ## 💬 需要帮助？
 
-1. 查看 [CONFIG_GUIDE.md](../CONFIG_GUIDE.md)
-2. 查看 [QUICK_FIX_GUIDE.md](../QUICK_FIX_GUIDE.md)
+1. 查看 [CONFIG_GUIDE.md](../docs-read/CONFIG_GUIDE.md)
+2. 查看 [QUICK_FIX_GUIDE.md](../docs-read/QUICK_FIX_GUIDE.md)
 3. 查看日志：`logs/app.log`
 4. 提交 Issue
 

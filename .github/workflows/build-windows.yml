@@ -1,0 +1,66 @@
+name: Build Windows Application
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build with PyInstaller
+      shell: cmd
+      run: |
+        call scripts\build_windows.bat
+
+    - name: Verify build results
+      shell: pwsh
+      run: |
+        if (!(Test-Path "dist/ScreenAlter/ScreenAlter.exe")) {
+          Write-Error "Main executable not found!"
+          exit 1
+        }
+        if (!(Test-Path "dist/ScreenAlter/config")) {
+          Write-Error "Config directory not found in dist!"
+          exit 1
+        }
+        if (!(Test-Path "dist/ScreenAlter/resources")) {
+          Write-Error "Resources directory not found in dist!"
+          exit 1
+        }
+        Write-Host "Build verified successfully."
+
+    - name: Archive build
+      shell: pwsh
+      run: |
+        Compress-Archive -Path dist/ScreenAlter/* -DestinationPath ScreenAlter-Windows.zip
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ScreenAlter-Windows
+        path: ScreenAlter-Windows.zip
+        retention-days: 7

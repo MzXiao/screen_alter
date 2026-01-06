@@ -103,7 +103,7 @@ pip install -r requirements.txt
 python server.py
 ```
 
-详见：[PaddleOCR 独立服务快速开始](QUICK_START_STANDALONE.md)
+详见：[PaddleOCR 独立服务快速开始](docs-read/QUICK_START_STANDALONE.md)
 
 #### 选项 B：Tesseract OCR（轻量级）
 
@@ -155,7 +155,7 @@ python server.py
 ### 配置文件位置
 
 - **主配置**：`config/config.json`
-- **配置说明**：查看 **[配置文件指南](CONFIG_GUIDE.md)** 📝
+- **配置说明**：查看 **[配置文件指南](docs-read/CONFIG_GUIDE.md)** 📝
 
 ### 主要配置项
 
@@ -168,7 +168,7 @@ python server.py
 }
 ```
 
-**详细说明**：[CONFIG_GUIDE.md](CONFIG_GUIDE.md)
+**详细说明**：[CONFIG_GUIDE.md](docs-read/CONFIG_GUIDE.md)
 
 ### 数据存储位置
 
@@ -183,7 +183,7 @@ python server.py
 
 ### 🚨 快速修复
 
-遇到问题？查看 **[快速修复指南](QUICK_FIX_GUIDE.md)** ⭐
+遇到问题？查看 **[快速修复指南](docs-read/QUICK_FIX_GUIDE.md)** ⭐
 
 ### 无法连接 PaddleOCR 服务
 
@@ -205,7 +205,7 @@ python server.py
 python test_paddleocr_service.py
 ```
 
-详细说明：[FIX_HTTP_400.md](FIX_HTTP_400.md)
+详细说明：[FIX_HTTP_400.md](docs-read/FIX_HTTP_400.md)
 
 ### windows 找不到微信
 
@@ -220,12 +220,12 @@ python find_wechat.py
 
 或禁用微信：`"wechat_enabled": false`
 
-详细说明：[WECHAT_TROUBLESHOOTING.md](WECHAT_TROUBLESHOOTING.md)
+详细说明：[WECHAT_TROUBLESHOOTING.md](docs-read/WECHAT_TROUBLESHOOTING.md)
 
 ### 更多问题
 
-- **[快速修复指南](QUICK_FIX_GUIDE.md)** - 最常见问题 ⭐
-- **[完整故障排查](TROUBLESHOOTING.md)** - 所有已知问题
+- **[快速修复指南](docs-read/QUICK_FIX_GUIDE.md)** - 最常见问题 ⭐
+- **[完整故障排查](docs-read/TROUBLESHOOTING.md)** - 所有已知问题
 
 ## 开发相关
 

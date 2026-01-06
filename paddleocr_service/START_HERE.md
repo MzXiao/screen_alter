@@ -108,7 +108,7 @@ PaddleOCR 服务 = 500MB (可选安装)
 ## 需要帮助？
 
 - 详细文档：[PADDLEOCR_STANDALONE_DEPLOYMENT.md](../docs/PADDLEOCR_STANDALONE_DEPLOYMENT.md)
-- 快速开始：[QUICK_START_STANDALONE.md](../QUICK_START_STANDALONE.md)
+- 快速开始：[QUICK_START_STANDALONE.md](../docs-read/QUICK_START_STANDALONE.md)
 - API 文档：启动服务后访问 http://localhost:5000/docs
 
 ---

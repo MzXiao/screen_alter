@@ -201,5 +201,5 @@ python find_wechat.py  # 手动选择路径
 ---
 
 相关文档：
-- [微信故障排查](../WECHAT_TROUBLESHOOTING.md)
-- [配置指南](../CONFIG_GUIDE.md)
+- [微信故障排查](../docs-read/WECHAT_TROUBLESHOOTING.md)
+- [配置指南](../docs-read/CONFIG_GUIDE.md)

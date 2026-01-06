@@ -353,7 +353,7 @@ python test_wechat.py
 
 ## 📚 相关文档
 
-- [主文档](README.md)
+- [主文档](../README.md)
 - [故障排查总览](TROUBLESHOOTING.md)
 - [微信使用指南](WECHAT_GUIDE.md)
 

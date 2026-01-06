@@ -11,10 +11,9 @@ base_dir = Path('.')
 # Collect all data files
 # Include all files from config and resources directories
 datas = [
-    ('config/*.json', 'config'),
-    ('config/*.md', 'config'),
-    ('resources/wechat/*.png', 'resources/wechat'),
-    ('resources/icons/*.ico', 'resources/icons'),
+    ('config', 'config'),
+    ('resources', 'resources'),
+    ('docs', 'docs'),
 ]
 
 # Hidden imports to ensure all modules are included
@@ -79,7 +78,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,  # Set to True for debugging, change to False for release
+    console=False,  # Set to False to hide the console window
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

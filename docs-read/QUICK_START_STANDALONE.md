@@ -296,9 +296,9 @@ C:\Users\<用户名>\.paddleocr\
 
 ## 📚 相关文档
 
-- 详细实现：[docs/PADDLEOCR_STANDALONE_DEPLOYMENT.md](docs/PADDLEOCR_STANDALONE_DEPLOYMENT.md)
-- 服务 API：[paddleocr_service/README.md](paddleocr_service/README.md)
-- OCR 引擎对比：[docs/OCR_ENGINE_GUIDE.md](docs/OCR_ENGINE_GUIDE.md)
+- 详细实现：[docs/PADDLEOCR_STANDALONE_DEPLOYMENT.md](../docs/PADDLEOCR_STANDALONE_DEPLOYMENT.md)
+- 服务 API：[paddleocr_service/README.md](../paddleocr_service/README.md)
+- OCR 引擎对比：[docs/OCR_ENGINE_GUIDE.md](../docs/OCR_ENGINE_GUIDE.md)
 - 打包指南：[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)
 
 ---

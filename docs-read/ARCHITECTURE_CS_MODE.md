@@ -420,7 +420,7 @@ uvicorn.run(
 ```dockerfile
 FROM python:3.11
 WORKDIR /app
-COPY . .
+COPY .. .
 RUN pip install -r requirements.txt
 CMD ["python", "server.py"]
 ```

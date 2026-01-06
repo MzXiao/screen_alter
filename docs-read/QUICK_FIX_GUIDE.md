@@ -175,7 +175,7 @@ python src/main.py
 
 | 文档 | 说明 |
 |------|------|
-| [README.md](README.md) | 项目总览和快速开始 |
+| [README.md](../README.md) | 项目总览和快速开始 |
 | [CONFIG_GUIDE.md](CONFIG_GUIDE.md) | 配置文件详细说明 ⭐ |
 | [ARCHITECTURE_CS_MODE.md](ARCHITECTURE_CS_MODE.md) | C/S 架构说明 |
 | [QUICK_START_STANDALONE.md](QUICK_START_STANDALONE.md) | PaddleOCR 服务快速开始 |
@@ -183,7 +183,7 @@ python src/main.py
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | 完整故障排查 |
 | [WECHAT_TROUBLESHOOTING.md](WECHAT_TROUBLESHOOTING.md) | 微信问题专项 |
 | [FIX_HTTP_400.md](FIX_HTTP_400.md) | HTTP 400 错误详解 |
-| [OCR_ENGINE_GUIDE.md](docs/OCR_ENGINE_GUIDE.md) | OCR 引擎对比 |
+| [OCR_ENGINE_GUIDE.md](../docs/OCR_ENGINE_GUIDE.md) | OCR 引擎对比 |
 
 ---
 

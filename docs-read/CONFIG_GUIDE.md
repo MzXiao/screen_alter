@@ -432,7 +432,7 @@ type logs\app.log | findstr /i "wechat"
 - [快速修复指南](QUICK_FIX_GUIDE.md) - 常见问题
 - [微信故障排查](WECHAT_TROUBLESHOOTING.md) - 微信配置
 - [PaddleOCR 服务](QUICK_START_STANDALONE.md) - 服务配置
-- [完整示例](config/config.example.json) - 配置模板
+- [完整示例](../config/config.example.json) - 配置模板
 
 ---
 

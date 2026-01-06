@@ -30,6 +30,15 @@ echo (PaddleOCR excluded - using C/S mode)
 :: Added --noconfirm to avoid prompts
 pyinstaller --noconfirm ScreenAlter.spec
 
+:: Ensure config and resources are copied to dist directory
+:: This acts as a fail-safe if PyInstaller's --add-data fails
+echo.
+echo Copying configuration and resource files...
+if not exist dist\ScreenAlter mkdir dist\ScreenAlter
+xcopy /E /I /Y config dist\ScreenAlter\config
+xcopy /E /I /Y resources dist\ScreenAlter\resources
+xcopy /E /I /Y docs dist\ScreenAlter\docs
+
 echo.
 echo ========================================
 echo Build complete!

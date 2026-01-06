@@ -51,6 +51,10 @@ jobs:
           Write-Error "Resources directory not found in dist!"
           exit 1
         }
+        if (!(Test-Path "dist/ScreenAlter/docs")) {
+          Write-Error "Docs directory not found in dist!"
+          exit 1
+        }
         Write-Host "Build verified successfully."
 
     - name: Archive build

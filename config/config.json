@@ -10,7 +10,7 @@
   "reference_images": [],
   "auto_start_monitoring": false,
   "remember_username": "admin",
-  "backend_url": "http://localhost:8000",
+  "backend_url": "https://meixin.hubeixinglian.com/screen_alter",
   "paddleocr_service_url": "http://localhost:5000",
   "wechat_enabled": true,
   "wechat_path": "D:\\software\\Weixin\\Weixin.exe"

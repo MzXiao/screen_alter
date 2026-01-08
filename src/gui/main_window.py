@@ -12,8 +12,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 from datetime import datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import shutil
+import os
 
 from database.db_manager import DatabaseManager
 from monitor.screen_capture import ScreenCapture
@@ -57,16 +60,8 @@ class MonitoringWorker(QObject):
             detection_method = None
             similarity_score = None
             
-            # OCR detection
-            if self.keywords and self.ocr_detector:
-                ocr_result = self.ocr_detector.detect_keywords(screenshot, self.keywords)
-                if ocr_result["detected"]:
-                    detected = True
-                    detected_keyword = ", ".join(ocr_result["matched_keywords"])
-                    detection_method = "ocr"
-            
-            # Image similarity detection
-            if self.ref_images and not detected:
+            # 1. Image similarity detection (Fastest, < 1s)
+            if self.ref_images:
                 img_result = self.image_detector.compare_with_references(screenshot, self.ref_images)
                 if img_result["detected"]:
                     detected = True
@@ -74,6 +69,18 @@ class MonitoringWorker(QObject):
                     detected_keyword = Path(best_match["path"]).name
                     detection_method = "image_similarity"
                     similarity_score = best_match["similarity"]
+                    
+                    # Log specific method if available
+                    if "method" in best_match:
+                        detection_method = best_match["method"]
+            
+            # 2. OCR detection (Slower, ~5s)
+            if not detected and self.keywords and self.ocr_detector:
+                ocr_result = self.ocr_detector.detect_keywords(screenshot, self.keywords)
+                if ocr_result["detected"]:
+                    detected = True
+                    detected_keyword = ", ".join(ocr_result["matched_keywords"])
+                    detection_method = "ocr"
             
             self.finished.emit({
                 "detected": detected,
@@ -127,6 +134,7 @@ class MainWindow(QMainWindow):
         logger.info("MainWindow: Screen capture initialized")
         
         self.ocr_detector = None
+        # Use template matching threshold as primary if available, or fallback to similarity threshold
         self.image_detector = ImageDetector(config.get("similarity_threshold", 0.85))
         self.gui_alert = GUIAlert(config.root_dir / "resources")
         
@@ -272,39 +280,44 @@ class MainWindow(QMainWindow):
         settings_row.addWidget(self.interval_combo)
         
         settings_row.addSpacing(20)
-        settings_row.addWidget(QLabel("OCR 引擎:"))
+        # settings_row.addWidget(QLabel("OCR 引擎:"))
         self.ocr_engine_combo = QComboBox()
         self.ocr_engine_combo.addItems(["paddleocr", "pytesseract"])
         self.ocr_engine_combo.currentIndexChanged.connect(self.save_config)
-        settings_row.addWidget(self.ocr_engine_combo)
+        # settings_row.addWidget(self.ocr_engine_combo)  # Hidden as per requirement
+        self.ocr_engine_combo.setVisible(False)
         
         settings_row.addStretch()
         layout.addLayout(settings_row)
 
         
-        # Keywords
-        keywords_label = QLabel("关键词列表:")
-        keywords_label.setFont(QFont("Arial", 10, QFont.Bold))
-        layout.addWidget(keywords_label)
+        # Keywords - Hidden as per requirement
+        # keywords_label = QLabel("关键词列表:")
+        # keywords_label.setFont(QFont("Arial", 10, QFont.Bold))
+        # layout.addWidget(keywords_label)
         
         keywords_layout = QHBoxLayout()
         
         self.keywords_list = QListWidget()
         self.keywords_list.setMaximumHeight(100)
-        keywords_layout.addWidget(self.keywords_list)
+        # keywords_layout.addWidget(self.keywords_list)
+        self.keywords_list.setVisible(False)
         
         keywords_buttons = QVBoxLayout()
         add_keyword_btn = QPushButton("添加")
         add_keyword_btn.clicked.connect(self.add_keyword)
-        keywords_buttons.addWidget(add_keyword_btn)
+        # keywords_buttons.addWidget(add_keyword_btn)
+        add_keyword_btn.setVisible(False)
         
         remove_keyword_btn = QPushButton("删除")
         remove_keyword_btn.clicked.connect(self.remove_keyword)
-        keywords_buttons.addWidget(remove_keyword_btn)
+        # keywords_buttons.addWidget(remove_keyword_btn)
+        remove_keyword_btn.setVisible(False)
+
         keywords_buttons.addStretch()
         
-        keywords_layout.addLayout(keywords_buttons)
-        layout.addLayout(keywords_layout)
+        # keywords_layout.addLayout(keywords_buttons)
+        # layout.addLayout(keywords_layout)
         
         # Reference images
         ref_images_label = QLabel("参考图片:")
@@ -447,10 +460,10 @@ class MainWindow(QMainWindow):
         
         # Monitor interval
         
-        # Keywords
-        keywords = self.user_config.get("keywords", [])
-        for keyword in keywords:
-            self.keywords_list.addItem(keyword)
+        # Keywords - Disabled/Hidden
+        # keywords = self.user_config.get("keywords", [])
+        # for keyword in keywords:
+        #     self.keywords_list.addItem(keyword)
         
         # Reference images
         ref_images = self.user_config.get("reference_images", [])
@@ -564,11 +577,31 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "错误", error_msg)
                 return
             
+            # Copy to img_template directory
+            try:
+                src_path = Path(file_path)
+                dest_dir = config.img_template_dir
+                dest_path = dest_dir / src_path.name
+                
+                # Handle duplicate names
+                if dest_path.exists():
+                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    dest_path = dest_dir / f"{src_path.stem}_{timestamp}{src_path.suffix}"
+                
+                shutil.copy2(src_path, dest_path)
+                final_path = str(dest_path)
+                logger.info(f"Copied reference image to {final_path}")
+                
+            except Exception as e:
+                logger.error(f"Failed to copy image: {e}")
+                QMessageBox.warning(self, "错误", f"复制图片失败: {e}")
+                return
+
             # Add to list
             ref_images = self.user_config.get("reference_images", [])
-            if file_path not in ref_images:
-                ref_images.append(file_path)
-                self.ref_images_list.addItem(Path(file_path).name)
+            if final_path not in ref_images:
+                ref_images.append(final_path)
+                self.ref_images_list.addItem(Path(final_path).name)
                 self.user_config["reference_images"] = ref_images
                 self.save_config()
     

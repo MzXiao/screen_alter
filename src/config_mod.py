@@ -26,6 +26,7 @@ class Config:
     DEFAULT_OCR_ENGINE = "paddleocr"  # or "pytesseract"
     DEFAULT_OCR_LANGUAGE = "chi_sim+eng"  # Chinese simplified + English
     DEFAULT_SIMILARITY_THRESHOLD = 0.85  # for image similarity (0-1)
+    DEFAULT_TEMPLATE_MATCHING_THRESHOLD = 0.8  # for template matching (0-1)
     DEFAULT_SCREENSHOT_RETENTION_DAYS = 7
     
     def __init__(self):
@@ -35,6 +36,10 @@ class Config:
         
         self.config_dir = self.root_dir / "config"
         self.config_file = self.config_dir / "config.json"
+        
+        # Directory for image templates
+        self.img_template_dir = self.config_dir / "img_template"
+        
         self.db_path = self.root_dir / "screen_monitor.db"
         self.screenshots_dir = self.root_dir / "screenshots"
         self.logs_dir = self.root_dir / "logs"
@@ -51,7 +56,7 @@ class Config:
     
     def _ensure_directories(self):
         """Create application directories if they don't exist."""
-        for directory in [self.app_dir, self.config_dir, self.screenshots_dir, self.logs_dir]:
+        for directory in [self.app_dir, self.config_dir, self.img_template_dir, self.screenshots_dir, self.logs_dir]:
             directory.mkdir(parents=True, exist_ok=True)
     
     def _load_config(self) -> Dict[str, Any]:

@@ -15,6 +15,7 @@ pytesseract==0.3.13
 
 # Image Analysis
 imagehash==4.3.1
+opencv-python>=4.8.0
 
 # Security
 pystray==0.19.5

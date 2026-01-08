@@ -155,7 +155,7 @@ class LoginWindow(QDialog):
                 border: 2px solid #4A90E2;
             }
         """)
-        self.password_input.returnPressed.connect(self.handle_login)
+        # self.password_input.returnPressed.connect(self.handle_login)  # Removed to prevent double trigger with default button
         layout.addWidget(self.password_input)
         
         # Remember me checkbox
@@ -186,6 +186,7 @@ class LoginWindow(QDialog):
             }
         """)
         self.login_button.clicked.connect(self.handle_login)
+        self.login_button.setDefault(True)  # Set as default button so Enter key triggers it
         layout.addWidget(self.login_button)
         
         # Registration is disabled

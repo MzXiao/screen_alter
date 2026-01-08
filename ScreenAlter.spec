@@ -36,6 +36,9 @@ hiddenimports = [
     'ctypes',  # For Windows API calls
     'ctypes.wintypes',  # Windows types
     'pyautogui',  # Window activation fallback
+    # OpenCV dependencies
+    'cv2',
+    'numpy',
 ]
 
 a = Analysis(

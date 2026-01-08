@@ -5,6 +5,8 @@ Compares screenshots with reference images using perceptual hashing.
 
 from PIL import Image
 import imagehash
+import cv2
+import numpy as np
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
 
@@ -38,6 +40,101 @@ class ImageDetector:
         """
         # Use average hash (fast and effective)
         return imagehash.average_hash(image, hash_size=hash_size)
+
+    def detect_template(self, screenshot: Image.Image, template_path: str, threshold: float = 0.8) -> Tuple[bool, float, Tuple[int, int]]:
+        """
+        Detect template in screenshot using OpenCV template matching.
+        
+        Args:
+            screenshot: PIL Image of the screen
+            template_path: Path to the template image
+            threshold: Matching threshold (0.8-0.9 recommended)
+            
+        Returns:
+            Tuple of (detected, max_val, max_loc)
+        """
+        try:
+            # Convert PIL image to OpenCV format (BGR)
+            screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            
+            # Load template
+            template = cv2.imread(template_path)
+            if template is None:
+                logger.error(f"Failed to load template: {template_path}")
+                return False, 0.0, (0, 0)
+                
+            # Perform template matching
+            result = cv2.matchTemplate(screenshot_cv, template, cv2.TM_CCOEFF_NORMED)
+            
+            # Get the best match position
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+            
+            if max_val >= threshold:
+                return True, float(max_val), max_loc
+            
+            return False, float(max_val), max_loc
+            
+        except Exception as e:
+            logger.error(f"Template matching failed for {template_path}: {e}")
+            return False, 0.0, (0, 0)
+
+    def detect_features_sift(self, screenshot: Image.Image, template_path: str, min_match_count: int = 15) -> Tuple[bool, float]:
+        """
+        Detect template using SIFT feature matching (robust to scale/rotation).
+        
+        Args:
+            screenshot: PIL Image of the screen
+            template_path: Path to the template image
+            min_match_count: Minimum good matches required
+            
+        Returns:
+            Tuple of (detected, score) where score is match_count/keypoints_count
+        """
+        try:
+            # Convert PIL image to grayscale for feature matching
+            screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2GRAY)
+            
+            # Load template in grayscale
+            template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+            if template is None:
+                logger.error(f"Failed to load template: {template_path}")
+                return False, 0.0
+                
+            # Initialize SIFT detector
+            sift = cv2.SIFT_create()
+            
+            # Find keypoints and descriptors
+            kp1, des1 = sift.detectAndCompute(template, None)
+            kp2, des2 = sift.detectAndCompute(screenshot_cv, None)
+            
+            if des1 is None or des2 is None or len(kp1) < min_match_count:
+                # Not enough keypoints in template to be significant
+                return False, 0.0
+                
+            # FLANN parameters or BFMatcher
+            # BFMatcher with default params
+            bf = cv2.BFMatcher()
+            matches = bf.knnMatch(des1, des2, k=2)
+            
+            # Apply ratio test
+            good = []
+            for m, n in matches:
+                if m.distance < 0.75 * n.distance:
+                    good.append(m)
+            
+            match_count = len(good)
+            
+            if match_count >= min_match_count:
+                # Calculate a rough "confidence" score
+                score = min(1.0, match_count / len(kp1)) 
+                logger.debug(f"SIFT match: {match_count} good matches (score: {score:.2f})")
+                return True, score
+            
+            return False, 0.0
+            
+        except Exception as e:
+            logger.error(f"SIFT feature matching failed for {template_path}: {e}")
+            return False, 0.0
     
     def calculate_similarity(self, image1: Image.Image, image2: Image.Image) -> float:
         """
@@ -91,17 +188,49 @@ class ImageDetector:
         for ref_path in reference_images:
             try:
                 # Load reference image
-                ref_image = Image.open(ref_path)
+                # Check extension to decide method?
+                # Use SIFT Feature Matching as primary method (robust to scale/content changes)
                 
-                # Calculate similarity
+                # 1. Try SIFT Feature Matching
+                sift_detected, sift_score = self.detect_features_sift(screenshot, ref_path)
+                
+                if sift_detected:
+                     matches.append({
+                        'path': ref_path,
+                        'similarity': sift_score,
+                        'method': 'sift_feature_matching'
+                    })
+                     logger.info(f"Match found (SIFT): {ref_path} (score: {sift_score:.2f})")
+                     continue
+
+                # 2. Fallback to Template Matching (OpenCV) - Good for exact icon matches
+                tm_detected, tm_score, _ = self.detect_template(screenshot, ref_path, self.threshold)
+                
+                if tm_detected:
+                     matches.append({
+                        'path': ref_path,
+                        'similarity': tm_score,
+                        'method': 'template_matching'
+                    })
+                     logger.info(f"Match found (Template): {ref_path} (score: {tm_score:.2f})")
+                     continue
+
+                # 3. Fallback to Hash Comparison (Optional/Last resort)
+                # Only if the user requested hash matching explicitly or as fallback?
+                # For this task, we prioritize Template Matching for speed and "finding buttons"
+                
+                # Existing Hash Logic (optional keep or replace)
+                ref_image = Image.open(ref_path)
                 similarity = self.calculate_similarity(screenshot, ref_image)
                 
                 if similarity >= self.threshold:
                     matches.append({
                         'path': ref_path,
-                        'similarity': similarity
+                        'similarity': similarity,
+                        'method': 'perceptual_hash'
                     })
-                    logger.info(f"Match found: {ref_path} (similarity: {similarity:.2f})")
+                    logger.info(f"Match found (Hash): {ref_path} (similarity: {similarity:.2f})")
+                
                 
             except Exception as e:
                 logger.error(f"Failed to process reference image {ref_path}: {e}")

@@ -20,17 +20,14 @@ rm -rf build dist
 # --onedir: Directory based (easier for resources)
 # --add-data: Include necessary resources
 pyinstaller --noconsole --onedir --windowed \
-    --name "ScreenAlter" \
-    --add-data "src/resources:resources" \
-    --add-data "src/config:config" \
-    --icon "src/resources/app_icon.icns" \
+    --name "星联助手" \
+    --add-data "resources:resources" \
+    --add-data "config:config" \
+    --add-data "docs:docs" \
+    --icon "resources/icons/app.ico" \
     --hidden-import "PyQt5.QtCore" \
     --hidden-import "PyQt5.QtGui" \
     --hidden-import "PyQt5.QtWidgets" \
-    --hidden-import "paddleocr" \
     src/main.py
 
-# Ensure config directory exists in the bundle (optional explicit check)
-# cp -r src/config dist/ScreenAlter.app/Contents/Resources/
-
-echo "Build complete. Check the dist/ScreenAlter directory."
+echo "Build complete. Check the dist/星联助手 directory."

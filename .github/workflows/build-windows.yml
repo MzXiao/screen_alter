@@ -39,19 +39,19 @@ jobs:
     - name: Verify build results
       shell: pwsh
       run: |
-        if (!(Test-Path "dist/ScreenAlter/ScreenAlter.exe")) {
+        if (!(Test-Path "dist/星联助手/星联助手.exe")) {
           Write-Error "Main executable not found!"
           exit 1
         }
-        if (!(Test-Path "dist/ScreenAlter/config")) {
+        if (!(Test-Path "dist/星联助手/config")) {
           Write-Error "Config directory not found in dist!"
           exit 1
         }
-        if (!(Test-Path "dist/ScreenAlter/resources")) {
+        if (!(Test-Path "dist/星联助手/resources")) {
           Write-Error "Resources directory not found in dist!"
           exit 1
         }
-        if (!(Test-Path "dist/ScreenAlter/docs")) {
+        if (!(Test-Path "dist/星联助手/docs")) {
           Write-Error "Docs directory not found in dist!"
           exit 1
         }
@@ -60,11 +60,11 @@ jobs:
     - name: Archive build
       shell: pwsh
       run: |
-        Compress-Archive -Path dist/ScreenAlter/* -DestinationPath ScreenAlter-Windows.zip
+        Compress-Archive -Path dist/星联助手/* -DestinationPath 星联助手-Windows.zip
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ScreenAlter-Windows
-        path: ScreenAlter-Windows.zip
+        name: 星联助手-Windows
+        path: 星联助手-Windows.zip
         retention-days: 7

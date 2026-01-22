@@ -30,22 +30,8 @@ echo (PaddleOCR excluded - using C/S mode)
 :: Added --noconfirm to avoid prompts
 pyinstaller --noconfirm ScreenAlter.spec
 
-:: Ensure config and resources are copied to dist directory
-:: This acts as a fail-safe if PyInstaller's --add-data fails
-echo.
-echo Copying configuration and resource files...
-if not exist dist\ScreenAlter mkdir dist\ScreenAlter
-xcopy /E /I /Y config dist\ScreenAlter\config
-xcopy /E /I /Y resources dist\ScreenAlter\resources
-xcopy /E /I /Y docs dist\ScreenAlter\docs
-
-echo.
-echo ========================================
-echo Build complete!
-echo ========================================
-echo.
 echo Main Application:
-echo   Location: dist\ScreenAlter\ScreenAlter.exe
+echo   Location: dist\星联助手\星联助手.exe
 echo   Size: ~50MB (without PaddleOCR)
 echo.
 echo PaddleOCR Service (Optional):
@@ -60,6 +46,15 @@ echo To use Tesseract:
 echo   1. Install Tesseract OCR
 echo   2. Select "pytesseract" in app settings
 echo.
+
+:: Ensure config and resources are copied to dist directory
+:: This acts as a fail-safe if PyInstaller's --add-data fails
+echo.
+echo Copying configuration and resource files...
+if not exist dist\星联助手 mkdir dist\星联助手
+xcopy /E /I /Y config dist\星联助手\config
+xcopy /E /I /Y resources dist\星联助手\resources
+xcopy /E /I /Y docs dist\星联助手\docs
 
 :: Only pause if not running in CI
 if "%GITHUB_ACTIONS%"=="" pause

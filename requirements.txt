@@ -33,6 +33,10 @@ pytest-cov==6.0.0
 PyInstaller==6.11.1
 py2app==0.28.9
 
+# HWID
+WMI==1.5.1; sys_platform == 'win32'
+pywin32==306; sys_platform == 'win32'
+
 # Additional dependencies
 numpy>=1.26.0,<2.0.0
 

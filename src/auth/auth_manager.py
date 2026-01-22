@@ -38,13 +38,19 @@ class AuthManager:
             Tuple of (success, message)
         """
         try:
+            from utils.hwid import get_hwid
+            hwid = get_hwid()
+            
             url = f"{self.backend_url}/login"
             data = {
                 "username": username,
                 "password": password
             }
+            # Add hwid as query param since OAuth2PasswordRequestForm takes from body, 
+            # but FastAPI allows query params too or we could use custom form
+            params = {"hwid": hwid}
             
-            response = requests.post(url, data=data, timeout=10)
+            response = requests.post(url, data=data, params=params, timeout=10)
             
             if response.status_code == 200:
                 result = response.json()
@@ -68,6 +74,13 @@ class AuthManager:
                 return True, "登录成功"
             elif response.status_code == 401:
                 return False, "用户名或密码错误"
+            elif response.status_code == 403:
+                detail = response.json().get("detail", "权限错误")
+                if "expired" in detail.lower():
+                    return False, "账号已到期，请联系管理员续费"
+                if "device" in detail.lower():
+                    return False, "该账号已在其他设备登录，请联系管理员解绑"
+                return False, detail
             else:
                 logger.error(f"Login failed with status {response.status_code}: {response.text}")
                 return False, f"登录服务器错误: {response.status_code}"
@@ -110,3 +123,26 @@ class AuthManager:
         if self.access_token:
             return {"Authorization": f"Bearer {self.access_token}"}
         return {}
+
+    def validate_call_permission(self) -> tuple[bool, str]:
+        """
+        Check if user has permission to make a call via backend.
+        
+        Returns:
+            Tuple of (success, message)
+        """
+        try:
+            url = f"{self.backend_url}/validate_call"
+            response = requests.get(url, headers=self.get_auth_header(), timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("valid"):
+                    return True, "验证成功"
+                else:
+                    return False, result.get("reason", "验证不通过")
+            else:
+                return False, f"服务器验证失败 ({response.status_code})"
+        except Exception as e:
+            logger.error(f"Failed to validate call permission: {e}")
+            return False, "网络连接错误，无法验证权限"

@@ -58,12 +58,45 @@ fi
 echo "Pushing image to registry..."
 docker push "${FULL_IMAGE_NAME}"
 
-# if [ $? -eq 0 ]; then
-#     echo "Push successful."
-#     echo ""
-#     echo "To run the backend locally on port 8100:"
-#     echo "docker run -p 8100:8000 ${FULL_IMAGE_NAME}"
-# else
-#     echo "Push failed."
-#     exit 1
-# fi
+if [ $? -eq 0 ]; then
+    echo "Push successful."
+    echo "Deploying to remote server 8.134.58.148..."
+    
+    REMOTE_HOST="root@8.134.58.148"
+    CONTAINER_NAME="screen_alter_backend"
+    
+    ssh "${REMOTE_HOST}" "
+        echo 'Pulling latest image...'
+        docker pull ${FULL_IMAGE_NAME}
+        
+        if [ \"\$(docker ps -aq -f name=${CONTAINER_NAME})\" ]; then
+            echo 'Stopping and removing old container...'
+            docker rm -f ${CONTAINER_NAME}
+        fi
+        
+        echo 'Starting new container...'
+        docker run -d \\
+          --name ${CONTAINER_NAME} \\
+          -p 8100:8000 \\
+          --add-host host.docker.internal:host-gateway \\
+          --restart always \\
+          -e TZ=Asia/Shanghai \\
+          ${FULL_IMAGE_NAME}
+          
+        echo 'Waiting for container to start...'
+        sleep 5
+        
+        if [ \"\$(docker ps -q -f name=${CONTAINER_NAME} -f status=running)\" ]; then
+            echo 'Deployment successful! Container is running.'
+        else
+            echo 'Deployment failed! Container is not running.'
+            docker logs ${CONTAINER_NAME}
+            exit 1
+        fi
+        
+        docker ps -f name=${CONTAINER_NAME}
+    "
+else
+    echo "Push failed."
+    exit 1
+fi

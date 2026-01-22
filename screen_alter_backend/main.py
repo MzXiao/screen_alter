@@ -13,7 +13,7 @@ except (ImportError, ValueError):
     import database, auth
     from database import get_db, User, Config, Alert, MonitoringLog
 
-app = FastAPI(title="Screen Alter Backend")
+app = FastAPI(title="星联助手后端")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -44,7 +44,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # --- Endpoints ---
 
 @app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(
+    hwid: Optional[str] = None,
+    form_data: OAuth2PasswordRequestForm = Depends(), 
+    db: Session = Depends(get_db)
+):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not auth.verify_password(form_data.password, user.password_hash):
         raise HTTPException(
@@ -53,12 +57,50 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Verification for non-admin users
+    if user.username != 'admin':
+        # Check Expiration
+        if user.expires_at and user.expires_at < datetime.utcnow():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account has expired",
+            )
+        
+        # Check HWID
+        if hwid:
+            if not user.hwid:
+                # First time login, bind HWID
+                user.hwid = hwid
+                db.commit()
+            elif user.hwid != hwid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account is bound to another device",
+                )
+        else:
+            # HWID is required for non-admin
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HWID is required",
+            )
+    
     # Update last login
     user.last_login = datetime.utcnow()
     db.commit()
     
     access_token = auth.create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer", "user_id": user.id, "username": user.username}
+
+@app.get("/validate_call")
+async def validate_call(current_user: User = Depends(get_current_user)):
+    """Validate if the user can still use the call function."""
+    if current_user.username == 'admin':
+        return {"valid": True}
+        
+    if current_user.expires_at and current_user.expires_at < datetime.utcnow():
+        return {"valid": False, "reason": "Account has expired"}
+        
+    return {"valid": True}
 
 @app.get("/config")
 async def get_config(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

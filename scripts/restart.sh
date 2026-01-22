@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 1. 定义变量（方便后续维护）
-IMAGE_NAME="crpi-qpp3zee61k91dpmz.cn-shanghai.personal.cr.aliyuncs.com/xiaomin/screen_alter_backend:v1"
+IMAGE_NAME="crpi-qpp3zee61k91dpmz.cn-shanghai.personal.cr.aliyuncs.com/xiaominz/screen_alter_backend:v1"
 CONTAINER_NAME="screen_alter_backend"
 
 echo "开始执行更新流程..."

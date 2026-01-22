@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         """Set up the user interface."""
-        self.setWindowTitle("Screen Monitor - 控制面板")
+        self.setWindowTitle("星联助手 - 控制面板")
         self.setMinimumSize(900, 700)
         
         # Central widget
@@ -183,13 +183,18 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.create_status_card())
         
         # Configuration panel
-        layout.addWidget(self.create_config_panel())
+        self.config_panel = self.create_config_panel()
+        layout.addWidget(self.config_panel)
         
         # Alert log table
         layout.addWidget(self.create_alert_log())
         
         # Control buttons
         layout.addWidget(self.create_control_buttons())
+        
+        # Hide config panel if not admin
+        if self.username != 'admin':
+            self.config_panel.hide()
         
         central_widget.setLayout(layout)
         
@@ -372,8 +377,9 @@ class MainWindow(QMainWindow):
         
         self.alert_table = QTableWidget()
         self.alert_table.setColumnCount(4)
-        self.alert_table.setHorizontalHeaderLabels(["时间", "关键词", "检测方式", "状态"])
+        self.alert_table.setHorizontalHeaderLabels(["时间", "截图", "检测方式", "状态"])
         self.alert_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.alert_table.verticalHeader().setDefaultSectionSize(80)  # Make rows taller for images
         self.alert_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.alert_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.alert_table.setMaximumHeight(200)
@@ -627,9 +633,16 @@ class MainWindow(QMainWindow):
             created_at = alert.get("created_at", "")
             self.alert_table.setItem(i, 0, QTableWidgetItem(str(created_at)))
             
-            # Keyword
-            keyword = alert.get("detected_keyword", "N/A")
-            self.alert_table.setItem(i, 1, QTableWidgetItem(keyword))
+            # Screenshot Thumbnail
+            screenshot_path = alert.get("screenshot_path")
+            if screenshot_path and os.path.exists(screenshot_path):
+                img_label = QLabel()
+                pixmap = QPixmap(screenshot_path)
+                img_label.setPixmap(pixmap.scaled(100, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                img_label.setAlignment(Qt.AlignCenter)
+                self.alert_table.setCellWidget(i, 1, img_label)
+            else:
+                self.alert_table.setItem(i, 1, QTableWidgetItem("无图片"))
             
             # Detection method
             method = alert.get("detection_method", "")
@@ -813,6 +826,16 @@ class MainWindow(QMainWindow):
             
             # Trigger GUI Alert (WeChat Call)
             logger.info("Triggering GUI Alert (WeChat Call)...")
+            
+            # Validation request to backend
+            if hasattr(self.db, 'auth_manager') and self.db.auth_manager:
+                is_valid, reason = self.db.auth_manager.validate_call_permission()
+                if not is_valid:
+                    logger.warning(f"Call validation failed: {reason}")
+                    QMessageBox.warning(self, "权限验证失败", f"无法使用拨号功能: {reason}")
+                    self.stop_monitoring()
+                    return
+            
             success = self.gui_alert.trigger_wechat_call()
             
             if success and alert_id:

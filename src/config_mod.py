@@ -13,7 +13,7 @@ class Config:
     """Application configuration manager."""
     
     # Application metadata
-    APP_NAME = "ScreenMonitor"
+    APP_NAME = "星联助手"
     APP_VERSION = "1.0.0"
     
     # Backend configuration

@@ -18,7 +18,7 @@ class SystemTray:
     
     def __init__(
         self,
-        app_name: str = "Screen Monitor",
+        app_name: str = "星联助手",
         icon_path: Optional[str] = None
     ):
         """

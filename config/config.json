@@ -9,7 +9,7 @@
   "keywords": [],
   "reference_images": [],
   "auto_start_monitoring": false,
-  "remember_username": "admin",
+  "remember_username": "test",
   "backend_url": "https://meixin.hubeixinglian.com/screen_alter",
   "paddleocr_service_url": "http://localhost:5000",
   "wechat_enabled": true,

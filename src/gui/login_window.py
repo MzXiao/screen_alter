@@ -35,7 +35,7 @@ class LoginWindow(QDialog):
     
     def setup_ui(self):
         """Set up the user interface."""
-        self.setWindowTitle("Screen Monitor - 登录")
+        self.setWindowTitle("星联助手 - 登录")
         self.setFixedSize(400, 600)
         self.setModal(True)
         
@@ -51,7 +51,7 @@ class LoginWindow(QDialog):
         layout.addStretch()
         
         # Title
-        title = QLabel("Screen Monitor")
+        title = QLabel("星联助手")
         title.setAlignment(Qt.AlignCenter)
         title.setFont(QFont("Arial", 24, QFont.Bold))
         title.setStyleSheet("color: white;")

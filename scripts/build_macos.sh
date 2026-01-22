@@ -20,7 +20,7 @@ rm -rf build dist
 # --onedir: Directory based (easier for resources)
 # --add-data: Include necessary resources
 pyinstaller --noconsole --onedir --windowed \
-    --name "星联助手" \
+    --name "StarLinkHelper" \
     --add-data "resources:resources" \
     --add-data "config:config" \
     --add-data "docs:docs" \
@@ -30,4 +30,4 @@ pyinstaller --noconsole --onedir --windowed \
     --hidden-import "PyQt5.QtWidgets" \
     src/main.py
 
-echo "Build complete. Check the dist/星联助手 directory."
+echo "Build complete. Check the dist/StarLinkHelper directory."

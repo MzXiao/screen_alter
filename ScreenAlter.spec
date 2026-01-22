@@ -76,7 +76,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='星联助手',
+    name='StarLinkHelper',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -98,6 +98,6 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='星联助手',
+    name='StarLinkHelper',
 )
 

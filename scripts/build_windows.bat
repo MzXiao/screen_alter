@@ -31,7 +31,7 @@ echo (PaddleOCR excluded - using C/S mode)
 pyinstaller --noconfirm ScreenAlter.spec
 
 echo Main Application:
-echo   Location: dist\星联助手\星联助手.exe
+echo   Location: dist\StarLinkHelper\StarLinkHelper.exe
 echo   Size: ~50MB (without PaddleOCR)
 echo.
 echo PaddleOCR Service (Optional):
@@ -51,10 +51,10 @@ echo.
 :: This acts as a fail-safe if PyInstaller's --add-data fails
 echo.
 echo Copying configuration and resource files...
-if not exist dist\星联助手 mkdir dist\星联助手
-xcopy /E /I /Y config dist\星联助手\config
-xcopy /E /I /Y resources dist\星联助手\resources
-xcopy /E /I /Y docs dist\星联助手\docs
+if not exist dist\StarLinkHelper mkdir dist\StarLinkHelper
+xcopy /E /I /Y config dist\StarLinkHelper\config
+xcopy /E /I /Y resources dist\StarLinkHelper\resources
+xcopy /E /I /Y docs dist\StarLinkHelper\docs
 
 :: Only pause if not running in CI
 if "%GITHUB_ACTIONS%"=="" pause

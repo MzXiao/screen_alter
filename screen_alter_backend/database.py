@@ -16,7 +16,12 @@ MYSQL_DB = os.getenv("MYSQL_DB", "screen_alter")
 
 SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}"
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,       # 关键：执行查询前先检测连接是否有效，失效则重连
+        pool_recycle=3600,        # 关键：连接存活超过 1 小时自动回收重建
+        pool_size=5,              # 连接池基础大小
+        max_overflow=10           # 允许临时溢出的连接数
+                       )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

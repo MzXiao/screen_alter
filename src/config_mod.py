@@ -91,6 +91,8 @@ class Config:
             # WeChat Configuration
             "wechat_enabled": False,  # 是否启用微信功能
             "wechat_path": "",  # 微信程序路径（留空自动查找）
+            # Debug Configuration
+            "debug": False,  # 是否启用调试模式（保存匹配子截图、标注截图等）
         }
     
     def save(self):

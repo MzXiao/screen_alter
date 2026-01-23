@@ -20,5 +20,9 @@
   
   "_comment_wechat_usage": "如果 wechat_enabled 为 true，程序会尝试启动微信",
   "_comment_wechat_path": "留空则自动查找，或手动指定完整路径，如: C:/Program Files/Tencent/WeChat/WeChat.exe",
-  "_comment_wechat_note": "注意：Windows 路径中的反斜杠需要写成双反斜杠 \\\\ 或使用正斜杠 /"
+  "_comment_wechat_note": "注意：Windows 路径中的反斜杠需要写成双反斜杠 \\\\ 或使用正斜杠 /",
+  
+  "_comment_debug": "调试模式配置",
+  "debug": false,
+  "_comment_debug_note": "如果 debug 为 true，会保存匹配区域子截图、标注截图，并显示验证对话框。默认 false 以节省磁盘空间。"
 }

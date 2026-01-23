@@ -85,7 +85,8 @@ class ScreenCapture:
             Path to saved screenshot or None
         """
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            from utils.timezone import get_china_time
+            timestamp = get_china_time().strftime("%Y%m%d_%H%M%S")
             filename = f"{prefix}_{timestamp}.png"
             filepath = self.screenshots_dir / filename
             
@@ -137,7 +138,8 @@ class ScreenCapture:
         """Delete screenshots older than retention period OR exceeding max_count."""
         try:
             # 1. Age-based cleanup
-            cutoff_date = datetime.now() - timedelta(days=self.retention_days)
+            from utils.timezone import get_china_time
+            cutoff_date = get_china_time() - timedelta(days=self.retention_days)
             
             files = sorted(
                 self.screenshots_dir.glob("*.png"),
@@ -151,7 +153,14 @@ class ScreenCapture:
             to_delete = []
             
             for filepath in files:
-                mtime = datetime.fromtimestamp(filepath.stat().st_mtime)
+                # File mtime is in system timezone, convert to China timezone for comparison
+                from utils.timezone import CHINA_TZ
+                import pytz
+                # Convert system timestamp to China timezone
+                # st_mtime is in seconds since epoch (UTC), convert to China timezone
+                mtime_naive = datetime.fromtimestamp(filepath.stat().st_mtime)
+                # Assume system time is UTC for file timestamps, convert to China
+                mtime = pytz.utc.localize(mtime_naive).astimezone(CHINA_TZ)
                 if mtime < cutoff_date:
                     to_delete.append(filepath)
             

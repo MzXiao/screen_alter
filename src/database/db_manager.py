@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 from config_mod import config
 from database.models import ALL_SCHEMA_STATEMENTS
+from utils.timezone import get_china_time
 
 logger = logging.getLogger(__name__)
 
@@ -63,17 +64,18 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 # Check if user exists
                 cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+                china_time_str = get_china_time().strftime("%Y-%m-%d %H:%M:%S")
                 if cursor.fetchone():
                     # Update existing
                     cursor.execute(
-                        "UPDATE users SET username = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?",
-                        (username, user_id)
+                        "UPDATE users SET username = ?, last_login = ? WHERE id = ?",
+                        (username, china_time_str, user_id)
                     )
                 else:
                     # Insert new
                     cursor.execute(
-                        "INSERT INTO users (id, username, password_hash, last_login) VALUES (?, ?, 'synced_from_backend', CURRENT_TIMESTAMP)",
-                        (user_id, username)
+                        "INSERT INTO users (id, username, password_hash, last_login) VALUES (?, ?, 'synced_from_backend', ?)",
+                        (user_id, username, china_time_str)
                     )
                 conn.commit()
                 return True
@@ -97,10 +99,11 @@ class DatabaseManager:
     def update_last_login(self, user_id: int):
         """Update last login timestamp."""
         try:
+            china_time_str = get_china_time().strftime("%Y-%m-%d %H:%M:%S")
             with self._get_connection() as conn:
                 conn.execute(
-                    "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
-                    (user_id,)
+                    "UPDATE users SET last_login = ? WHERE id = ?",
+                    (china_time_str, user_id)
                 )
                 conn.commit()
         except Exception as e:
@@ -127,13 +130,14 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 # Check if config exists
                 cursor.execute("SELECT id FROM config WHERE user_id = ?", (user_id,))
+                china_time_str = get_china_time().strftime("%Y-%m-%d %H:%M:%S")
                 if cursor.fetchone():
                     cursor.execute("""
                         UPDATE config 
                         SET monitor_interval=?, ocr_engine=?, keywords=?, 
-                            capture_region=?, reference_images=?, updated_at=CURRENT_TIMESTAMP
+                            capture_region=?, reference_images=?, updated_at=?
                         WHERE user_id=?
-                    """, (monitor_interval, ocr_engine, keywords_json, region_json, ref_imgs_json, user_id))
+                    """, (monitor_interval, ocr_engine, keywords_json, region_json, ref_imgs_json, china_time_str, user_id))
                 else:
                     cursor.execute("""
                         INSERT INTO config (user_id, monitor_interval, ocr_engine, keywords, capture_region, reference_images)
@@ -176,12 +180,13 @@ class DatabaseManager:
     ) -> Optional[int]:
         """Create alert locally."""
         try:
+            china_time_str = get_china_time().strftime("%Y-%m-%d %H:%M:%S")
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO alerts (user_id, detected_keyword, screenshot_path, detection_method, similarity_score, alert_sent)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (user_id, detected_keyword, screenshot_path, detection_method, similarity_score, alert_sent and 1 or 0))
+                    INSERT INTO alerts (user_id, detected_keyword, screenshot_path, detection_method, similarity_score, alert_sent, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, detected_keyword, screenshot_path, detection_method, similarity_score, alert_sent and 1 or 0, china_time_str))
                 conn.commit()
                 return cursor.lastrowid
         except Exception as e:
@@ -197,12 +202,13 @@ class DatabaseManager:
     ) -> Optional[int]:
         """Create check log locally."""
         try:
+            china_time_str = get_china_time().strftime("%Y-%m-%d %H:%M:%S")
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO check_logs (user_id, result_status, details, screenshot_path)
-                    VALUES (?, ?, ?, ?)
-                """, (user_id, result_status, details, screenshot_path))
+                    INSERT INTO check_logs (user_id, result_status, details, screenshot_path, check_time)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (user_id, result_status, details, screenshot_path, china_time_str))
                 conn.commit()
                 return cursor.lastrowid
         except Exception as e:

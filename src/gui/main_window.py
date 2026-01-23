@@ -12,11 +12,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 from datetime import datetime
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import shutil
 import os
+from utils.timezone import format_china_time, parse_and_convert_to_china, get_china_time
 
 from database.db_manager import DatabaseManager
 from monitor.screen_capture import ScreenCapture
@@ -35,7 +35,7 @@ class MonitoringWorker(QObject):
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
     
-    def __init__(self, screen_capture, ocr_detector, image_detector, keywords, ref_images, region):
+    def __init__(self, screen_capture, ocr_detector, image_detector, keywords, ref_images, region, debug=False):
         super().__init__()
         self.screen_capture = screen_capture
         self.ocr_detector = ocr_detector
@@ -43,6 +43,7 @@ class MonitoringWorker(QObject):
         self.keywords = keywords
         self.ref_images = ref_images
         self.region = region
+        self.debug = debug
     
     def run(self):
         """Perform a single monitoring check."""
@@ -61,6 +62,7 @@ class MonitoringWorker(QObject):
             similarity_score = None
             
             # 1. Image similarity detection (Fastest, < 1s)
+            matched_region_path = None
             if self.ref_images:
                 img_result = self.image_detector.compare_with_references(screenshot, self.ref_images)
                 if img_result["detected"]:
@@ -73,6 +75,88 @@ class MonitoringWorker(QObject):
                     # Log specific method if available
                     if "method" in best_match:
                         detection_method = best_match["method"]
+                    
+                    # Generate sub-screenshot of matched region (only in debug mode)
+                    # All successful matches should now have location information
+                    if self.debug and "location" in best_match and "template_size" in best_match:
+                        try:
+                            location = best_match["location"]  # (x, y)
+                            template_size = best_match["template_size"]  # (width, height)
+                            
+                            # Calculate crop region with padding for better visibility
+                            padding = 10
+                            x = max(0, location[0] - padding)
+                            y = max(0, location[1] - padding)
+                            w = template_size[0] + (padding * 2)
+                            h = template_size[1] + (padding * 2)
+                            
+                            # Ensure we don't exceed screenshot bounds
+                            screenshot_width, screenshot_height = screenshot.size
+                            x = min(x, screenshot_width - 1)
+                            y = min(y, screenshot_height - 1)
+                            w = min(w, screenshot_width - x)
+                            h = min(h, screenshot_height - y)
+                            
+                            # Crop the matched region
+                            matched_region = screenshot.crop((x, y, x + w, y + h))
+                            
+                            # Save the matched region as a separate image for debugging
+                            timestamp = get_china_time().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                            matched_region_filename = f"matched_region_{timestamp}.png"
+                            matched_region_path = Path(screenshot_path).parent / matched_region_filename
+                            matched_region.save(matched_region_path)
+                            
+                            # Also save annotated screenshot with bounding box for debugging
+                            try:
+                                import cv2
+                                import numpy as np
+                                screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+                                
+                                # Draw bounding box on screenshot
+                                cv2.rectangle(
+                                    screenshot_cv,
+                                    (location[0], location[1]),
+                                    (location[0] + template_size[0], location[1] + template_size[1]),
+                                    (0, 255, 0),  # Green color
+                                    3  # Thickness
+                                )
+                                
+                                # Add text label
+                                label = f"Match: {best_match['similarity']:.3f}"
+                                cv2.putText(
+                                    screenshot_cv,
+                                    label,
+                                    (location[0], max(20, location[1] - 10)),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.7,
+                                    (0, 255, 0),
+                                    2
+                                )
+                                
+                                # Save annotated screenshot
+                                annotated_filename = f"screenshot_annotated_{timestamp}.png"
+                                annotated_path = Path(screenshot_path).parent / annotated_filename
+                                cv2.imwrite(str(annotated_path), screenshot_cv)
+                                logger.info(f"✅ 标注截图已保存至: {annotated_path} (绿色框标记匹配区域)")
+                            except Exception as e:
+                                logger.debug(f"Failed to create annotated screenshot: {e}")
+                            
+                            logger.info(f"✅ 匹配区域子截图已保存至: {matched_region_path}")
+                            logger.info(f"   匹配位置: ({location[0]}, {location[1]}), 模板大小: {template_size[0]}x{template_size[1]}")
+                            if 'scale' in best_match and best_match['scale'] != 1.0:
+                                original_size = best_match.get('original_template_size', template_size)
+                                logger.info(f"   缩放比例: {best_match['scale']:.2f}x (原始: {original_size[0]}x{original_size[1]})")
+                            logger.info(f"   裁剪区域: ({x}, {y}) - ({x+w}, {y+h})")
+                            logger.info(f"   匹配方法: {detection_method}, 置信度: {best_match['similarity']:.4f}")
+                        except Exception as e:
+                            logger.error(f"Failed to generate matched region screenshot: {e}", exc_info=True)
+                    elif not self.debug:
+                        # In non-debug mode, just log basic match info
+                        if "location" in best_match:
+                            location = best_match["location"]
+                            logger.info(f"✅ 检测到匹配: {detected_keyword}, 位置: {location}, 置信度: {best_match['similarity']:.4f}")
+                    else:
+                        logger.warning(f"⚠️  匹配结果缺少位置信息，无法生成子截图。方法: {detection_method}, 匹配数据: {best_match.keys()}")
             
             # 2. OCR detection (Slower, ~5s)
             if not detected and self.keywords and self.ocr_detector:
@@ -82,13 +166,27 @@ class MonitoringWorker(QObject):
                     detected_keyword = ", ".join(ocr_result["matched_keywords"])
                     detection_method = "ocr"
             
-            self.finished.emit({
+            # Prepare result with all debug information
+            result_data = {
                 "detected": detected,
                 "detected_keyword": detected_keyword,
                 "detection_method": detection_method,
                 "similarity_score": similarity_score,
-                "screenshot_path": screenshot_path
-            })
+                "screenshot_path": screenshot_path,
+                "matched_region_path": str(matched_region_path) if matched_region_path else None
+            }
+            
+            # Add best_match details for debugging (already have best_match from above)
+            if detected and self.ref_images and "best_match" in locals():
+                result_data["match_location"] = best_match.get("location")
+                result_data["template_size"] = best_match.get("template_size")
+                result_data["scale"] = best_match.get("scale", 1.0)  # Scale factor
+                result_data["original_template_size"] = best_match.get("original_template_size")
+                result_data["ref_size"] = best_match.get("ref_size")
+                result_data["screenshot_size"] = best_match.get("screenshot_size")
+                result_data["template_match_score"] = best_match.get("template_match_score")
+            
+            self.finished.emit(result_data)
             
         except Exception as e:
             logger.error(f"Worker error: {e}")
@@ -473,6 +571,33 @@ class MainWindow(QMainWindow):
         
         # Reference images
         ref_images = self.user_config.get("reference_images", [])
+        
+        # For non-admin users, ensure at least one reference image exists
+        if self.username != 'admin' and not ref_images:
+            # Use default template image from config directory
+            default_image = config.config_dir / "image.png"
+
+            if default_image.exists():
+                # Copy to img_template directory if needed
+                dest_dir = config.img_template_dir
+                dest_path = dest_dir / default_image.name
+                if not dest_path.exists():
+                    try:
+                        shutil.copy2(default_image, dest_path)
+                        logger.info(f"Copied default template image to {dest_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to copy default image: {e}")
+                
+                # Add to user config
+                ref_images = [str(dest_path)]
+                self.user_config["reference_images"] = ref_images
+                # Save to database
+                # self.db.create_or_update_config(
+                #     self.user_id,
+                #     reference_images=ref_images
+                # )
+                # logger.info(f"Auto-added default reference image for non-admin user: {self.username}")
+        
         for img_path in ref_images:
             self.ref_images_list.addItem(Path(img_path).name)
         
@@ -591,7 +716,7 @@ class MainWindow(QMainWindow):
                 
                 # Handle duplicate names
                 if dest_path.exists():
-                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    timestamp = get_china_time().strftime("%Y%m%d%H%M%S")
                     dest_path = dest_dir / f"{src_path.stem}_{timestamp}{src_path.suffix}"
                 
                 shutil.copy2(src_path, dest_path)
@@ -629,9 +754,17 @@ class MainWindow(QMainWindow):
         self.alert_table.setRowCount(len(alerts))
         
         for i, alert in enumerate(alerts):
-            # Time
+            # Time - convert to China timezone
             created_at = alert.get("created_at", "")
-            self.alert_table.setItem(i, 0, QTableWidgetItem(str(created_at)))
+            if created_at:
+                try:
+                    china_time = format_china_time(parse_and_convert_to_china(created_at))
+                    self.alert_table.setItem(i, 0, QTableWidgetItem(china_time))
+                except Exception as e:
+                    logger.debug(f"Failed to parse time {created_at}: {e}")
+                    self.alert_table.setItem(i, 0, QTableWidgetItem(str(created_at)))
+            else:
+                self.alert_table.setItem(i, 0, QTableWidgetItem(""))
             
             # Screenshot Thumbnail
             screenshot_path = alert.get("screenshot_path")
@@ -776,9 +909,11 @@ class MainWindow(QMainWindow):
             # Start worker thread
             self.is_processing = True
             self.monitor_thread = QThread()
+            # Get debug setting from config
+            debug_mode = config.get("debug", False)
             self.monitor_worker = MonitoringWorker(
                 self.screen_capture, self.ocr_detector, self.image_detector,
-                keywords, ref_images, region
+                keywords, ref_images, region, debug=debug_mode
             )
             self.monitor_worker.moveToThread(self.monitor_thread)
             
@@ -804,8 +939,6 @@ class MainWindow(QMainWindow):
         screenshot_path = result["screenshot_path"]
         
         if detected:
-            current_time = datetime.now().timestamp()
-            
             # Record alert
             alert_id = self.db.create_alert(
                 self.user_id,
@@ -844,6 +977,22 @@ class MainWindow(QMainWindow):
             # Refresh UI
             self.load_alert_log()
 
+            # Show matched region if available (only in debug mode)
+            debug_mode = config.get("debug", False)
+            matched_region_path = result.get("matched_region_path")
+            if debug_mode and matched_region_path and Path(matched_region_path).exists():
+                self.show_matched_region(
+                    result['detected_keyword'], 
+                    matched_region_path, 
+                    screenshot_path,
+                    result.get("match_location"),
+                    result.get("template_size"),
+                    result.get("similarity_score"),
+                    result.get("detection_method"),
+                    result.get("scale"),
+                    result.get("original_template_size")
+                )
+
             # Stop monitoring immediately after detection
             logger.info("Target detected, stopping monitoring...")
             self.stop_monitoring()
@@ -857,6 +1006,89 @@ class MainWindow(QMainWindow):
         # Optional: cleanup old screenshots periodically
         # self.screen_capture.cleanup_old_screenshots()
 
+    def show_matched_region(self, detected_keyword: str, matched_region_path: str, full_screenshot_path: str,
+                           location=None, template_size=None, similarity_score=None, detection_method=None,
+                           scale=None, original_template_size=None):
+        """Show a dialog with the matched region and full screenshot for verification and debugging."""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"检测验证 - {detected_keyword}")
+        dialog.setMinimumSize(900, 700)
+        
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel(f"✅ 检测到目标: {detected_keyword}")
+        title.setFont(QFont("Arial", 14, QFont.Bold))
+        title.setStyleSheet("color: #28a745;")
+        layout.addWidget(title)
+        
+        # Debug info
+        debug_info = QTextEdit()
+        debug_info.setReadOnly(True)
+        debug_info.setMaximumHeight(140)
+        debug_text = f"检测方法: {detection_method or 'unknown'}\n"
+        debug_text += f"置信度: {similarity_score:.4f}\n" if similarity_score else "置信度: N/A\n"
+        if location:
+            debug_text += f"匹配位置: ({location[0]}, {location[1]})\n"
+        if template_size:
+            debug_text += f"匹配时模板大小: {template_size[0]}x{template_size[1]} 像素\n"
+        if scale and scale != 1.0:
+            debug_text += f"缩放比例: {scale:.2f}x"
+            if original_template_size:
+                debug_text += f" (原始: {original_template_size[0]}x{original_template_size[1]} 像素)\n"
+            else:
+                debug_text += "\n"
+        elif original_template_size:
+            debug_text += f"原始模板大小: {original_template_size[0]}x{original_template_size[1]} 像素\n"
+        debug_text += f"匹配区域文件: {matched_region_path}\n"
+        debug_text += f"完整截图文件: {full_screenshot_path}"
+        debug_info.setPlainText(debug_text)
+        debug_info.setFont(QFont("Courier", 9))
+        layout.addWidget(debug_info)
+        
+        # Images layout
+        images_layout = QHBoxLayout()
+        
+        # Matched region
+        matched_widget = QVBoxLayout()
+        matched_label = QLabel("匹配区域 (子截图):")
+        matched_label.setFont(QFont("Arial", 10, QFont.Bold))
+        matched_widget.addWidget(matched_label)
+        
+        matched_img = QLabel()
+        matched_pixmap = QPixmap(matched_region_path)
+        matched_img.setPixmap(matched_pixmap.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        matched_img.setAlignment(Qt.AlignCenter)
+        matched_img.setStyleSheet("border: 2px solid #28a745; padding: 5px;")
+        matched_widget.addWidget(matched_img)
+        images_layout.addLayout(matched_widget)
+        
+        # Full screenshot
+        full_widget = QVBoxLayout()
+        full_label = QLabel("完整截图:")
+        full_label.setFont(QFont("Arial", 10, QFont.Bold))
+        full_widget.addWidget(full_label)
+        
+        full_img = QLabel()
+        full_pixmap = QPixmap(full_screenshot_path)
+        full_img.setPixmap(full_pixmap.scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        full_img.setAlignment(Qt.AlignCenter)
+        full_img.setStyleSheet("border: 2px solid #007bff; padding: 5px;")
+        full_widget.addWidget(full_img)
+        images_layout.addLayout(full_widget)
+        
+        layout.addLayout(images_layout)
+        
+        # Close button
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+        
+        dialog.setLayout(layout)
+        dialog.exec_()
+    
     def on_monitoring_error(self, error_msg: str):
         """Handle error from monitoring worker."""
         self.is_processing = False
@@ -918,7 +1150,17 @@ class MonitoringHistoryDialog(QDialog):
         self.table.setRowCount(len(logs))
         
         for i, log in enumerate(logs):
-            self.table.setItem(i, 0, QTableWidgetItem(log['check_time']))
+            # Convert time to China timezone
+            check_time = log.get('check_time', '')
+            if check_time:
+                try:
+                    china_time = format_china_time(parse_and_convert_to_china(check_time))
+                    self.table.setItem(i, 0, QTableWidgetItem(china_time))
+                except Exception as e:
+                    logger.debug(f"Failed to parse time {check_time}: {e}")
+                    self.table.setItem(i, 0, QTableWidgetItem(str(check_time)))
+            else:
+                self.table.setItem(i, 0, QTableWidgetItem(""))
             
             status_item = QTableWidgetItem(log['result_status'])
             if log['result_status'] == 'DETECTED':
